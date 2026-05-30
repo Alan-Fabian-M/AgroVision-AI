@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.database import engine, Base
 from app.core.neo4j import close_driver
@@ -23,13 +24,7 @@ import app.models  # noqa: F401
 
 from app.routers.diagnostics import router as diagnostics_router
 from app.routers.knowledge import router as knowledge_router
-
-# ── Logging ──────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(name)-30s | %(levelname)-7s | %(message)s",
-)
-logger = logging.getLogger(__name__)
+from sqlalchemy.exc import SQLAlchemyError
 
 settings = get_settings()
 
@@ -69,6 +64,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ── CORS ─────────────────────────────────────────────────
 if settings.CORS_ALLOWED_ORIGINS:
     origins = [
@@ -101,6 +103,7 @@ app.mount(
 # ── Routers ──────────────────────────────────────────────
 app.include_router(diagnostics_router, prefix=settings.API_V1_PREFIX)
 app.include_router(knowledge_router, prefix=settings.API_V1_PREFIX)
+app.include_router(analyze_router, prefix=settings.API_V1_PREFIX)
 
 
 # ── Health check ─────────────────────────────────────────

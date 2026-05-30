@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = "password"
+    GEMINI_API_KEY: str = ""
+    OPENWEATHERMAP_API_KEY: str = ""
+    SECRET_KEY: str = ""
+    HOST: str = "127.0.0.1"
+    PORT: int = 8000
+    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
+    CORS_ALLOWED_ORIGINS: str = "http://localhost:3000"
 
     # ── APIs externas ────────────────────────────────────
     GEMINI_API_KEY: str = ""
