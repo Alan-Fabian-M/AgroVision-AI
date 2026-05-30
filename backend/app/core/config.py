@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     CORS_ALLOWED_ORIGINS: str = ""
 
     # ── Base de datos ────────────────────────────────────
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/agrovison_ai"
+    DATABASE_URL: str = "postgresql://postgres:password123@localhost:5433/agrovision_db"
 
     # ── API ──────────────────────────────────────────────
     API_V1_PREFIX: str = "/api/v1"

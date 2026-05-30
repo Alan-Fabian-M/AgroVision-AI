@@ -6,6 +6,8 @@ solo se modifica este archivo.
 """
 from functools import lru_cache
 
+from fastapi import Depends
+
 from app.services.interfaces.file_storage import FileStorageService
 from app.services.interfaces.weather import WeatherService
 from app.services.interfaces.ai_diagnosis import AIDiagnosisService
@@ -57,18 +59,17 @@ def get_treatment_service() -> TreatmentRecommendationService:
 
 
 def get_orchestrator(
-    file_storage: FileStorageService = None,
-    weather: WeatherService = None,
-    ai: AIDiagnosisService = None,
-    treatment: TreatmentRecommendationService = None,
+    file_storage: FileStorageService = Depends(get_file_storage),
+    weather: WeatherService = Depends(get_weather_service),
+    ai: AIDiagnosisService = Depends(get_ai_service),
+    treatment: TreatmentRecommendationService = Depends(get_treatment_service),
 ) -> DiagnosisOrchestrator:
     """
     Construye el orquestador con todas las dependencias inyectadas.
-    Usa los singletons por defecto, pero permite override para testing.
     """
     return DiagnosisOrchestrator(
-        file_storage=file_storage or get_file_storage(),
-        weather_service=weather or get_weather_service(),
-        ai_service=ai or get_ai_service(),
-        treatment_service=treatment or get_treatment_service(),
+        file_storage=file_storage,
+        weather_service=weather,
+        ai_service=ai,
+        treatment_service=treatment,
     )
