@@ -27,6 +27,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
     with SingleTickerProviderStateMixin {
   _AnalysisState _state = _AnalysisState.loading;
   _DiagnosisResult? _result;
+  bool _savedToDb = false;
   late AnimationController _pulseController;
 
   @override
@@ -52,6 +53,9 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
 
       request.fields['descripcion'] = widget.descripcion;
       request.fields['tipo'] = widget.tipo;
+      request.fields['user_id'] = 'agricultor';
+      request.fields['latitud'] = '-17.7863';
+      request.fields['longitud'] = '-63.1812';
 
       for (final path in widget.imagePaths) {
         final file = File(path);
@@ -65,9 +69,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final guardado = data['guardado'] == true;
         setState(() {
           _result = _DiagnosisResult.fromJson(data);
           _state = _AnalysisState.done;
+          _savedToDb = guardado;
         });
       } else {
         _useMockResult();
@@ -230,7 +236,30 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
         children: [
           // Imagen del cultivo
           _buildCropImage(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+
+          if (_savedToDb)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCFCE7),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFF86EFAC)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Diagnóstico guardado — aparecerá en tu historial',
+                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF15803D)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Tarjeta de problema
           _buildProblemCard(r, riskColor, riskLabel),
@@ -436,7 +465,14 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
             width: double.infinity,
             height: 60,
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () => Navigator.pushNamed(
+                context,
+                '/insumos',
+                arguments: {
+                  'plaga': r.plagaDetectada,
+                  'productos': r.productosSugeridos,
+                },
+              ),
               icon: const Icon(Icons.shopping_cart, size: 22),
               label: Text(
                 'Ver Insumos',
@@ -456,7 +492,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
             width: double.infinity,
             height: 54,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () => Navigator.pushNamed(context, '/advisor'),
               icon: const Icon(Icons.chat_bubble_outline, size: 20),
               label: Text(
                 'Hablar con Asesor',
@@ -465,6 +501,32 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.onSurface,
                 side: const BorderSide(color: AppColors.outlineVariant, width: 2),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Botón Ver en Mapa
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                '/field',
+                arguments: {
+                  'plaga': r.plagaDetectada,
+                  'prioridad': r.prioridad,
+                },
+              ),
+              icon: const Icon(Icons.map_outlined, size: 20, color: AppColors.primary),
+              label: Text(
+                'Ver en Mapa de Riesgos',
+                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.primary),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary, width: 2),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -488,7 +550,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
               onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false)),
           _NavBtn(icon: Icons.photo_camera, label: 'Capture', active: true, onTap: () {}),
           _NavBtn(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () {}),
-          _NavBtn(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),
+          _NavBtn(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () => Navigator.pushNamed(context, '/advisor')),
         ],
       ),
     );

@@ -60,6 +60,57 @@ async def get_all_crops() -> list[dict[str, Any]]:
         raise DatabaseException(detail=f"Neo4j connection error: {e}")
 
 
+async def get_treatments_by_pest(plaga: str) -> dict[str, Any]:
+    """Devuelve todos los tratamientos que combaten una plaga específica."""
+    query = """
+    MATCH (t:Tratamiento)-[:COMBATE]->(p:Plaga)
+    WHERE toLower(p.nombre) CONTAINS toLower($plaga) OR toLower($plaga) CONTAINS toLower(p.nombre)
+    OPTIONAL MATCH (p)-[:AFECTA_A]->(c:Cultivo)
+    RETURN t.nombre AS nombre,
+           t.ingrediente_activo AS ingrediente_activo,
+           t.aplicacion AS aplicacion,
+           p.nombre AS plaga_nombre,
+           p.tipo AS plaga_tipo,
+           collect(DISTINCT c.nombre) AS cultivos_afectados
+    """
+    try:
+        async with get_neo4j_session() as session:
+            result = await session.run(query, plaga=plaga)
+            records = await result.data()
+
+            if not records:
+                # Búsqueda fuzzy: si no hay match exacto, devuelve todos los tratamientos
+                fallback = """
+                MATCH (t:Tratamiento)-[:COMBATE]->(p:Plaga)
+                RETURN t.nombre AS nombre,
+                       t.ingrediente_activo AS ingrediente_activo,
+                       t.aplicacion AS aplicacion,
+                       p.nombre AS plaga_nombre,
+                       p.tipo AS plaga_tipo
+                LIMIT 4
+                """
+                result2 = await session.run(fallback)
+                records = await result2.data()
+
+            tratamientos = [
+                {
+                    "nombre": r["nombre"],
+                    "ingrediente_activo": r.get("ingrediente_activo", ""),
+                    "aplicacion": r.get("aplicacion", "Foliar"),
+                    "plaga": r.get("plaga_nombre", plaga),
+                    "tipo_plaga": r.get("plaga_tipo", ""),
+                    "cultivos": r.get("cultivos_afectados", []),
+                }
+                for r in records
+            ]
+            return {"plaga": plaga, "tratamientos": tratamientos}
+
+    except (ServiceUnavailable, AuthError) as e:
+        raise DatabaseException(detail=f"Neo4j connection error: {e}")
+    except Exception as e:
+        raise DatabaseException(detail=f"Error: {e}")
+
+
 async def get_all_pests() -> list[dict[str, Any]]:
     query = "MATCH (p:Plaga) RETURN p.nombre AS nombre, p.tipo AS tipo"
 

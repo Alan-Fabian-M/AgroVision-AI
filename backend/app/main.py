@@ -14,6 +14,7 @@ from app.core.exceptions import (
 from app.routers.diagnostics import router as diagnostics_router
 from app.routers.knowledge import router as knowledge_router
 from app.routers.analyze import router as analyze_router
+from app.routers.advisor import router as advisor_router
 from sqlalchemy.exc import SQLAlchemyError
 
 settings = get_settings()
@@ -45,6 +46,7 @@ app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.include_router(diagnostics_router, prefix=settings.API_V1_PREFIX)
 app.include_router(knowledge_router, prefix=settings.API_V1_PREFIX)
 app.include_router(analyze_router, prefix=settings.API_V1_PREFIX)
+app.include_router(advisor_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health")

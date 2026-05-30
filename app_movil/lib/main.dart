@@ -5,6 +5,8 @@ import 'screens/capture_screen.dart';
 import 'screens/preview_screen.dart';
 import 'screens/analysis_result_screen.dart';
 import 'screens/field_map_screen.dart';
+import 'screens/advisor_screen.dart';
+import 'screens/insumo_screen.dart';
 
 void main() {
   runApp(const AgroGuardianApp());
@@ -23,7 +25,21 @@ class AgroGuardianApp extends StatelessWidget {
       routes: {
         '/': (_) => const HomeScreen(),
         '/capture': (_) => const CaptureScreen(),
-        '/field': (_) => const FieldMapScreen(),
+        '/field': (ctx) {
+          final args = ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
+          return FieldMapScreen(
+            nuevaPlaga: args?['plaga'] as String?,
+            nuevaPrioridad: args?['prioridad'] as String?,
+          );
+        },
+        '/advisor': (_) => const AdvisorScreen(),
+        '/insumos': (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
+          return InsumoScreen(
+            plaga: args['plaga'] as String,
+            productosSugeridos: List<String>.from(args['productos'] as List? ?? []),
+          );
+        },
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/preview') {

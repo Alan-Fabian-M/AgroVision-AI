@@ -45,6 +45,11 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Future<void> _takePhoto() async {
+    // La cámara solo funciona en Android/iOS
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      await _pickFromGallery();
+      return;
+    }
     final picker = ImagePicker();
     final file = await picker.pickImage(source: ImageSource.camera);
     if (file != null && mounted) {
