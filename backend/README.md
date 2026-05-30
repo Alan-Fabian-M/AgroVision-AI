@@ -1,4 +1,4 @@
-# AgroGuardian AI - Backend
+# AgroVision AI - Backend
 
 Backend FastAPI para la plataforma de detección de riesgos agrícolas AgroVision AI.
 
@@ -265,4 +265,4 @@ app.add_middleware(
 | `NEO4J_USER` | `neo4j` | Usuario de Neo4j |
 | `NEO4J_PASSWORD` | `password` | Contraseña de Neo4j |
 | `API_V1_PREFIX` | `/api/v1` | Prefijo para endpoints |
-| `PROJECT_NAME` | `AgroGuardian AI` | Nombre del proyecto |
+| `PROJECT_NAME` | `AgroVision AI` | Nombre del proyecto |
