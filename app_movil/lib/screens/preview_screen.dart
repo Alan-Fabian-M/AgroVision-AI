@@ -23,12 +23,17 @@ class _PreviewScreenState extends State<PreviewScreen> {
   int _selectedIndex = 0;
   final TextEditingController _notesController = TextEditingController();
   bool _isRecording = false;
+  bool _hasText = false;
   final _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _imagePaths = [widget.imagePath];
+    _notesController.addListener(() {
+      final hasText = _notesController.text.trim().isNotEmpty;
+      if (hasText != _hasText) setState(() => _hasText = hasText);
+    });
   }
 
   @override
@@ -342,28 +347,46 @@ class _PreviewScreenState extends State<PreviewScreen> {
                       ),
                     ),
                   ),
-                  // Mic
-                  GestureDetector(
-                    onTapDown: (_) => setState(() => _isRecording = true),
-                    onTapUp: (_) => setState(() => _isRecording = false),
-                    onTapCancel: () => setState(() => _isRecording = false),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 40,
-                      height: 40,
-                      margin: const EdgeInsets.only(right: 4, bottom: 4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _isRecording
-                            ? AppColors.primary
-                            : Colors.transparent,
-                      ),
-                      child: Icon(
-                        _isRecording ? Icons.mic : Icons.mic_none,
-                        color: _isRecording ? Colors.white : AppColors.onSurfaceVariant,
-                        size: 22,
-                      ),
-                    ),
+                  // Mic / Enviar
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                    child: _hasText
+                        // Botón ENVIAR cuando hay texto
+                        ? GestureDetector(
+                            key: const ValueKey('send'),
+                            onTap: _analyzeNow,
+                            child: Container(
+                              width: 40, height: 40,
+                              margin: const EdgeInsets.only(right: 4, bottom: 4),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.primary,
+                              ),
+                              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                            ),
+                          )
+                        // Botón MIC cuando está vacío
+                        : GestureDetector(
+                            key: const ValueKey('mic'),
+                            onTapDown: (_) => setState(() => _isRecording = true),
+                            onTapUp: (_) => setState(() => _isRecording = false),
+                            onTapCancel: () => setState(() => _isRecording = false),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 40, height: 40,
+                              margin: const EdgeInsets.only(right: 4, bottom: 4),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _isRecording ? AppColors.primary : Colors.transparent,
+                              ),
+                              child: Icon(
+                                _isRecording ? Icons.mic : Icons.mic_none,
+                                color: _isRecording ? Colors.white : AppColors.onSurfaceVariant,
+                                size: 22,
+                              ),
+                            ),
+                          ),
                   ),
                 ],
               ),

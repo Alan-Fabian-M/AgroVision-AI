@@ -550,7 +550,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
               onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false)),
           _NavBtn(icon: Icons.photo_camera, label: 'Capture', active: true, onTap: () {}),
           _NavBtn(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () {}),
-          _NavBtn(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () => Navigator.pushNamed(context, '/advisor')),
+          _NavBtn(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => Navigator.pushNamed(context, '/profile')),
         ],
       ),
     );

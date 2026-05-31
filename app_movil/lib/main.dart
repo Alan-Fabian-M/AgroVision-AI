@@ -6,6 +6,7 @@ import 'screens/preview_screen.dart';
 import 'screens/analysis_result_screen.dart';
 import 'screens/field_map_screen.dart';
 import 'screens/advisor_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/insumo_screen.dart';
 
 void main() {
@@ -33,6 +34,7 @@ class AgroGuardianApp extends StatelessWidget {
           );
         },
         '/advisor': (_) => const AdvisorScreen(),
+        '/profile': (_) => const ProfileScreen(),
         '/insumos': (ctx) {
           final args = ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
           return InsumoScreen(

@@ -311,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _NavItem(icon: Icons.home, label: 'Home', active: true, onTap: () {}),
             _NavItem(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => Navigator.pushNamed(context, '/capture')),
             _NavItem(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () => Navigator.pushNamed(context, '/field')),
-            _NavItem(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () => Navigator.pushNamed(context, '/advisor')),
+            _NavItem(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => Navigator.pushNamed(context, '/profile')),
           ],
         ),
       ),

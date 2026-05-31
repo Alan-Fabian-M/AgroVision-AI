@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,10 +12,9 @@ class CaptureScreen extends StatefulWidget {
 
 class _CaptureScreenState extends State<CaptureScreen>
     with SingleTickerProviderStateMixin {
-  int _selectedTab = 0;
-  final _tabs = ['Planta', 'Insecto', 'Suelo'];
   late AnimationController _scanController;
   late Animation<double> _scanAnimation;
+  bool _launching = false;
 
   @override
   void initState() {
@@ -36,36 +34,43 @@ class _CaptureScreenState extends State<CaptureScreen>
     super.dispose();
   }
 
-  Future<void> _pickFromGallery() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
-    if (file != null && mounted) {
-      _navigateToAnalysis(file.path);
-    }
-  }
-
   Future<void> _takePhoto() async {
-    // La cámara solo funciona en Android/iOS
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      await _pickFromGallery();
-      return;
-    }
-    final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.camera);
-    if (file != null && mounted) {
-      _navigateToAnalysis(file.path);
+    if (_launching) return;
+    setState(() => _launching = true);
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+      if (file != null && mounted) {
+        _navigateToPreview(file.path);
+      }
+    } finally {
+      if (mounted) setState(() => _launching = false);
     }
   }
 
-  void _navigateToAnalysis(String imagePath) {
-    Navigator.pushNamed(
-      context,
-      '/preview',
-      arguments: {
-        'imagePath': imagePath,
-        'tipo': _tabs[_selectedTab],
-      },
-    );
+  Future<void> _pickFromGallery() async {
+    if (_launching) return;
+    setState(() => _launching = true);
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.gallery);
+      if (file != null && mounted) {
+        _navigateToPreview(file.path);
+      }
+    } finally {
+      if (mounted) setState(() => _launching = false);
+    }
+  }
+
+  void _navigateToPreview(String imagePath) {
+    Navigator.pushNamed(context, '/preview', arguments: {
+      'imagePath': imagePath,
+      'tipo': 'Planta',
+    });
   }
 
   @override
@@ -75,28 +80,23 @@ class _CaptureScreenState extends State<CaptureScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Fondo simulando cámara
-          _buildCameraBackground(),
-          // Overlay oscuro
-          Container(color: Colors.black.withValues(alpha: 0.35)),
-          // Header
+          _buildBackground(),
+          Container(color: Colors.black.withValues(alpha: 0.4)),
           _buildHeader(),
-          // Viewfinder central
           _buildViewfinder(),
-          // Controles inferiores
           _buildBottomControls(),
         ],
       ),
     );
   }
 
-  Widget _buildCameraBackground() {
+  Widget _buildBackground() {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1A2E1A), Color(0xFF2D4A2D), Color(0xFF1A2E1A)],
+          colors: [Color(0xFF0D1F0D), Color(0xFF1A3A1A), Color(0xFF0D1F0D)],
         ),
       ),
     );
@@ -104,15 +104,11 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   Widget _buildHeader() {
     return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
+      top: 0, left: 0, right: 0,
       child: Container(
         padding: EdgeInsets.only(
           top: MediaQuery.of(context).padding.top + 8,
-          left: 16,
-          right: 16,
-          bottom: 16,
+          left: 16, right: 16, bottom: 16,
         ),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -124,42 +120,22 @@ class _CaptureScreenState extends State<CaptureScreen>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Botón volver
-            _glassButton(
+            _glassBtn(
               onTap: () => Navigator.pop(context),
               child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
             ),
-            // GPS + Flash
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.my_location, size: 16, color: AppColors.onPrimaryContainer),
-                      const SizedBox(width: 6),
-                      Text(
-                        'GPS Activo',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _glassButton(
-                  onTap: () {},
-                  child: const Icon(Icons.flash_off, color: Colors.white, size: 22),
-                ),
-              ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.my_location, size: 16, color: AppColors.onPrimaryContainer),
+                const SizedBox(width: 6),
+                Text('GPS Activo', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              ]),
             ),
           ],
         ),
@@ -172,7 +148,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Tip de instrucción
+          // Tip
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 32),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -181,110 +157,40 @@ class _CaptureScreenState extends State<CaptureScreen>
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.info, color: Colors.white, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Acerca más la cámara a la hoja para mayor precisión.',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white,
-                    ),
-                  ),
+            child: Row(children: [
+              const Icon(Icons.info, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Acerca más la cámara a la hoja para mayor precisión.',
+                  style: GoogleFonts.inter(fontSize: 14, color: Colors.white),
                 ),
-              ],
-            ),
+              ),
+            ]),
           ),
           const SizedBox(height: 24),
-          // Caja de enfoque con esquinas
+          // Frame con esquinas y línea de scan
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: AspectRatio(
               aspectRatio: 1,
-              child: Stack(
-                children: [
-                  // Sombra alrededor del frame
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          blurRadius: 0,
-                          spreadRadius: 9999,
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Esquinas del viewfinder
-                  ..._buildCorners(),
-                  // Línea de escaneo animada
-                  AnimatedBuilder(
-                    animation: _scanAnimation,
-                    builder: (context, _) {
-                      return Positioned(
-                        top: null,
-                        left: 0,
-                        right: 0,
-                        child: FractionalTranslation(
-                          translation: Offset(0, _scanAnimation.value * 8 - 0.5),
-                          child: Container(
-                            height: 2,
-                            decoration: BoxDecoration(
-                              color: AppColors.onPrimaryContainer.withValues(alpha: 0.8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.onPrimaryContainer.withValues(alpha: 0.5),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Tabs de tipo
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(_tabs.length, (i) {
-                final active = i == _selectedTab;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedTab = i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: active ? AppColors.primaryContainer : Colors.transparent,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      _tabs[i],
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: active ? AppColors.onPrimaryContainer : Colors.white,
+              child: Stack(children: [
+                ..._buildCorners(),
+                AnimatedBuilder(
+                  animation: _scanAnimation,
+                  builder: (_, __) => Positioned(
+                    left: 0, right: 0,
+                    top: _scanAnimation.value * 240,
+                    child: Container(
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: AppColors.onPrimaryContainer.withValues(alpha: 0.8),
+                        boxShadow: [BoxShadow(color: AppColors.onPrimaryContainer.withValues(alpha: 0.5), blurRadius: 8, spreadRadius: 2)],
                       ),
                     ),
                   ),
-                );
-              }),
+                ),
+              ]),
             ),
           ),
         ],
@@ -294,48 +200,21 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   List<Widget> _buildCorners() {
     const color = AppColors.onPrimaryContainer;
-    const size = 36.0;
-    const thickness = 4.0;
-    const radius = 10.0;
-
+    const s = 36.0; const t = 4.0; const r = 10.0;
     return [
-      // Top-left
-      Positioned(
-        top: 0, left: 0,
-        child: _Corner(size: size, thickness: thickness, radius: radius, color: color,
-            top: true, left: true),
-      ),
-      // Top-right
-      Positioned(
-        top: 0, right: 0,
-        child: _Corner(size: size, thickness: thickness, radius: radius, color: color,
-            top: true, left: false),
-      ),
-      // Bottom-left
-      Positioned(
-        bottom: 0, left: 0,
-        child: _Corner(size: size, thickness: thickness, radius: radius, color: color,
-            top: false, left: true),
-      ),
-      // Bottom-right
-      Positioned(
-        bottom: 0, right: 0,
-        child: _Corner(size: size, thickness: thickness, radius: radius, color: color,
-            top: false, left: false),
-      ),
+      Positioned(top: 0, left: 0,  child: _Corner(size: s, thickness: t, radius: r, color: color, top: true,  left: true)),
+      Positioned(top: 0, right: 0, child: _Corner(size: s, thickness: t, radius: r, color: color, top: true,  left: false)),
+      Positioned(bottom: 0, left: 0,  child: _Corner(size: s, thickness: t, radius: r, color: color, top: false, left: true)),
+      Positioned(bottom: 0, right: 0, child: _Corner(size: s, thickness: t, radius: r, color: color, top: false, left: false)),
     ];
   }
 
   Widget _buildBottomControls() {
     return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
+      bottom: 0, left: 0, right: 0,
       child: Container(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 20,
+          left: 16, right: 16, top: 20,
           bottom: MediaQuery.of(context).padding.bottom + 24,
         ),
         decoration: BoxDecoration(
@@ -349,23 +228,21 @@ class _CaptureScreenState extends State<CaptureScreen>
             GestureDetector(
               onTap: _pickFromGallery,
               child: Container(
-                width: 56,
-                height: 56,
+                width: 56, height: 56,
                 decoration: BoxDecoration(
                   color: AppColors.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.outlineVariant),
                 ),
-                child: const Icon(Icons.photo_library_outlined,
-                    color: AppColors.onSurfaceVariant, size: 24),
+                child: const Icon(Icons.photo_library_outlined, color: AppColors.onSurfaceVariant, size: 24),
               ),
             ),
-            // Botón de captura
+            // Botón cámara principal
             GestureDetector(
               onTap: _takePhoto,
-              child: Container(
-                width: 88,
-                height: 88,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 100),
+                width: 88, height: 88,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.onPrimaryContainer, width: 4),
@@ -373,38 +250,30 @@ class _CaptureScreenState extends State<CaptureScreen>
                 child: Padding(
                   padding: const EdgeInsets.all(6),
                   child: Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.primary,
+                      color: _launching ? AppColors.surfaceTint : AppColors.primary,
                     ),
-                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 30),
+                    child: _launching
+                        ? const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.camera_alt, color: Colors.white, size: 30),
                   ),
                 ),
               ),
             ),
-            // Herramientas
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.surfaceContainerLow,
-                border: Border.all(color: AppColors.outlineVariant),
-              ),
-              child: const Icon(Icons.tune, color: AppColors.onSurfaceVariant, size: 24),
-            ),
+            // Espacio balanceado
+            const SizedBox(width: 56),
           ],
         ),
       ),
     );
   }
 
-  Widget _glassButton({required VoidCallback onTap, required Widget child}) {
+  Widget _glassBtn({required VoidCallback onTap, required Widget child}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 48,
-        height: 48,
+        width: 48, height: 48,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.black.withValues(alpha: 0.4),
@@ -416,82 +285,37 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 }
 
-class _Corner extends StatelessWidget {
-  final double size, thickness, radius;
-  final Color color;
-  final bool top, left;
+// ── Corner painter ────────────────────────────────────────────────────────────
 
-  const _Corner({
-    required this.size,
-    required this.thickness,
-    required this.radius,
-    required this.color,
-    required this.top,
-    required this.left,
-  });
+class _Corner extends StatelessWidget {
+  final double size, thickness, radius; final Color color; final bool top, left;
+  const _Corner({required this.size, required this.thickness, required this.radius, required this.color, required this.top, required this.left});
 
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _CornerPainter(
-        color: color,
-        thickness: thickness,
-        radius: radius,
-        top: top,
-        left: left,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size(size, size),
+    painter: _CornerPainter(color: color, thickness: thickness, radius: radius, top: top, left: left),
+  );
 }
 
 class _CornerPainter extends CustomPainter {
-  final Color color;
-  final double thickness, radius;
-  final bool top, left;
-
-  _CornerPainter({
-    required this.color,
-    required this.thickness,
-    required this.radius,
-    required this.top,
-    required this.left,
-  });
+  final Color color; final double thickness, radius; final bool top, left;
+  _CornerPainter({required this.color, required this.thickness, required this.radius, required this.top, required this.left});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = thickness
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
+    final paint = Paint()..color = color..strokeWidth = thickness..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
     final path = Path();
-    final w = size.width;
-    final h = size.height;
-
+    final w = size.width; final h = size.height;
     if (top && left) {
-      path.moveTo(0, h);
-      path.lineTo(0, radius);
-      path.arcToPoint(Offset(radius, 0), radius: Radius.circular(radius));
-      path.lineTo(w, 0);
+      path.moveTo(0, h); path.lineTo(0, radius); path.arcToPoint(Offset(radius, 0), radius: Radius.circular(radius)); path.lineTo(w, 0);
     } else if (top && !left) {
-      path.moveTo(0, 0);
-      path.lineTo(w - radius, 0);
-      path.arcToPoint(Offset(w, radius), radius: Radius.circular(radius));
-      path.lineTo(w, h);
+      path.moveTo(0, 0); path.lineTo(w - radius, 0); path.arcToPoint(Offset(w, radius), radius: Radius.circular(radius)); path.lineTo(w, h);
     } else if (!top && left) {
-      path.moveTo(0, 0);
-      path.lineTo(0, h - radius);
-      path.arcToPoint(Offset(radius, h), radius: Radius.circular(radius));
-      path.lineTo(w, h);
+      path.moveTo(0, 0); path.lineTo(0, h - radius); path.arcToPoint(Offset(radius, h), radius: Radius.circular(radius)); path.lineTo(w, h);
     } else {
-      path.moveTo(0, h);
-      path.lineTo(w - radius, h);
-      path.arcToPoint(Offset(w, h - radius), radius: Radius.circular(radius));
-      path.lineTo(w, 0);
+      path.moveTo(0, h); path.lineTo(w - radius, h); path.arcToPoint(Offset(w, h - radius), radius: Radius.circular(radius)); path.lineTo(w, 0);
     }
-
     canvas.drawPath(path, paint);
   }
 
