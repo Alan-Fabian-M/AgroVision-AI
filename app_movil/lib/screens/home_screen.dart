@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/weather_card.dart';
+import '../features/auth/presentation/providers/auth_provider.dart';
+import '../features/auth/domain/entities/user.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
           CustomScrollView(
             slivers: [
-              _buildTopBar(),
+              _buildTopBar(ref, user),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                 sliver: SliverList(
@@ -36,7 +43,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  SliverAppBar _buildTopBar() {
+  SliverAppBar _buildTopBar(WidgetRef ref, User? user) {
     return SliverAppBar(
       pinned: true,
       backgroundColor: AppColors.surface,
@@ -50,47 +57,92 @@ class HomeScreen extends StatelessWidget {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.surfaceContainerHigh,
-                  border: Border.all(color: AppColors.outlineVariant),
+          PopupMenuButton<String>(
+            offset: const Offset(0, 50),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              if (value == 'profile') {
+                // TODO: Implement profile screen
+              } else if (value == 'logout') {
+                ref.read(authProvider.notifier).logout();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 20),
+                    const SizedBox(width: 12),
+                    Text('Mi Perfil', style: GoogleFonts.inter()),
+                  ],
                 ),
-                child: const Icon(Icons.person, color: AppColors.onSurfaceVariant, size: 22),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Hola, Pedro',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on, size: 13, color: AppColors.onSurfaceVariant),
-                      const SizedBox(width: 2),
-                      Text(
-                        'Santa Cruz - El Torno',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    const Icon(Icons.logout, size: 20, color: Colors.redAccent),
+                    const SizedBox(width: 12),
+                    Text('Cerrar sesión', style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
             ],
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surfaceContainerHigh,
+                    border: Border.all(color: AppColors.outlineVariant),
+                  ),
+                  child: const Icon(Icons.person, color: AppColors.onSurfaceVariant, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user != null ? 'Hola, ${user.nombre.isNotEmpty ? user.nombre : user.email}' : 'Hola, Productor',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Icon(
+                          user?.role == 'ADMIN' ? Icons.admin_panel_settings : Icons.agriculture,
+                          size: 13,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${user?.role ?? 'AGRICULTOR'} | Santa Cruz',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down, color: AppColors.onSurfaceVariant, size: 20),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: AppColors.onSurfaceVariant),
+            tooltip: 'Notificaciones',
+            onPressed: () {},
           ),
         ],
       ),
@@ -103,7 +155,7 @@ class HomeScreen extends StatelessWidget {
         const SizedBox(height: 24),
         Center(
           child: GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/capture'),
+            onTap: () => context.push('/capture'),
             child: SizedBox(
               width: 240,
               height: 240,
@@ -250,7 +302,7 @@ class HomeScreen extends StatelessWidget {
       bottom: 88,
       right: 16,
       child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, '/capture'),
+        onTap: () => context.push('/capture'),
         child: Container(
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -301,8 +353,8 @@ class HomeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _NavItem(icon: Icons.home, label: 'Home', active: true, onTap: () {}),
-            _NavItem(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => Navigator.pushNamed(context, '/capture')),
-            _NavItem(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () => Navigator.pushNamed(context, '/field')),
+            _NavItem(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => context.push('/capture')),
+            _NavItem(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () => context.push('/field')),
             _NavItem(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),
           ],
         ),

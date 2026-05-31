@@ -21,8 +21,9 @@ from app.core.exceptions import (
 # Importar TODOS los modelos para que Base.metadata los conozca
 import app.models  # noqa: F401
 
+from app.routers.auth import router as auth_router
 from app.routers.diagnostics import router as diagnostics_router
-from app.routers.knowledge import router as knowledge_router
+# from app.routers.knowledge import router as knowledge_router
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -96,8 +97,9 @@ app.mount(
 )
 
 # ── Routers ──────────────────────────────────────────────
+app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(diagnostics_router, prefix=settings.API_V1_PREFIX)
-app.include_router(knowledge_router, prefix=settings.API_V1_PREFIX)
+# app.include_router(knowledge_router, prefix=settings.API_V1_PREFIX)
 
 # ── Health check ─────────────────────────────────────────
 @app.get("/health", tags=["System"])
