@@ -1,6 +1,11 @@
 """
 Router: /api/v1/diagnostics
-Endpoints para el flujo de diagnóstico multimodal de AgroVision AI.
+Endpoint principal de AgroVision AI — Pipeline completo:
+  1. Recepción multipart (imágenes, audio, GPS, notas)
+  2. Consulta climática (OpenWeatherMap)
+  3. Análisis IA multimodal (Gemini 2.5 Flash)
+  4. Recomendación basada en grafos (Neo4j)
+  5. Respuesta consolidada al frontend
 """
 import uuid
 import logging
@@ -8,15 +13,10 @@ from typing import Optional
 from fastapi import (
     APIRouter, Depends, File, Form, HTTPException, UploadFile, status,
 )
-from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.core.exceptions import DatabaseException
-from app.dependencies import get_orchestrator
-from app.models.diagnosis import Diagnosis
-from app.schemas.diagnosis import DiagnosisResponse
-from app.services.diagnosis_orchestrator import DiagnosisOrchestrator
 from app.services.weather_service import WeatherService, get_weather_service
+from app.services.gemini_service import GeminiService, get_gemini_service
+from app.services.neo4j_service import Neo4jRecommendationService, get_recommendation_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/diagnostics", tags=["Diagnostics"])
@@ -29,18 +29,16 @@ ALLOWED_AUDIO_TYPES = {
     "audio/mpeg", "audio/wav", "audio/ogg", "audio/webm",
     "audio/mp4", "audio/x-m4a", "audio/aac",
 }
-MAX_FILE_SIZE_MB = 10
 
 
-# ── POST /analyze — Endpoint principal ───────────────────
+# ── POST /analyze — Pipeline completo ────────────────────
 @router.post(
     "/analyze",
     status_code=status.HTTP_201_CREATED,
-    summary="Análisis multimodal de cultivo (Validación Temporal)",
+    summary="Análisis multimodal de cultivo",
     description=(
         "Recibe datos multimodales (imágenes, audio, texto) junto con "
-        "coordenadas geográficas. Temporalmente solo valida imágenes "
-        "y retorna el contexto climático obtenido de OpenWeatherMap."
+        "coordenadas geográficas. Ejecuta: Clima → Gemini → Neo4j → Respuesta."
     ),
 )
 async def analyze_crop(
@@ -69,15 +67,17 @@ async def analyze_crop(
         description="Lista de imágenes del cultivo afectado"
     ),
     weather_service: WeatherService = Depends(get_weather_service),
+    gemini_service: GeminiService = Depends(get_gemini_service),
+    neo4j_service: Neo4jRecommendationService = Depends(get_recommendation_service),
 ):
     """
-    Endpoint temporal de validación multimodal y de clima.
-    Flujo temporal:
-    1. Valida inputs (formatos de archivo, user_id UUID).
-    2. Consulta API del clima (OpenWeatherMap).
-    3. Retorna un JSON temporal.
+    Pipeline completo de análisis multimodal.
     """
-    # ── Validar user_id como UUID ────────────────────────
+    logger.info("═══════════════════════════════════════════════════════")
+    logger.info("  🚀 NUEVO ANÁLISIS DE CULTIVO RECIBIDO")
+    logger.info("═══════════════════════════════════════════════════════")
+
+    # ── 1. Validar user_id como UUID ─────────────────────
     try:
         parsed_user_id = uuid.UUID(user_id)
     except ValueError:
@@ -86,7 +86,7 @@ async def analyze_crop(
             detail=f"user_id debe ser un UUID válido. Recibido: '{user_id}'",
         )
 
-    # ── Validar que hay al menos una imagen ──────────────
+    # ── 2. Validar que hay al menos una imagen ───────────
     valid_images = [img for img in images if img.filename]
     if not valid_images:
         raise HTTPException(
@@ -94,7 +94,7 @@ async def analyze_crop(
             detail="Debe enviar al menos una imagen del cultivo.",
         )
 
-    # ── Validar tipos de archivo ─────────────────────────
+    # ── 3. Validar tipos de archivo ──────────────────────
     for img in valid_images:
         if img.content_type and img.content_type not in ALLOWED_IMAGE_TYPES:
             raise HTTPException(
@@ -115,80 +115,134 @@ async def analyze_crop(
                 ),
             )
     else:
-        audio = None  # Normalizar: sin archivo = None
+        audio = None
 
-    # ── Consultar Clima ──────────────────────────────────
+    logger.info(f"📍 GPS: ({latitude}, {longitude})")
+    logger.info(f"📸 Imágenes: {len(valid_images)}")
+    logger.info(f"🎤 Audio: {'Sí' if audio else 'No'}")
+    logger.info(f"📝 Notas: {text_notes or 'Ninguna'}")
+
+    # ── 4. PASO 1: Consultar Clima ───────────────────────
+    logger.info("🌤  Paso 1/3: Consultando clima...")
     try:
         weather_data = await weather_service.get_weather(latitude, longitude)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Error consultando el clima en el endpoint: {e}")
-        weather_data = {"error": "No se pudo obtener el clima"}
+        logger.info(
+            f"   ✓ Clima: {weather_data.get('temperature')}°C, "
+            f"{weather_data.get('humidity')}% humedad, "
+            f"{weather_data.get('condition')}"
+        )
+    except HTTPException:
+        logger.warning("   ⚠ Servicio de clima no disponible. Usando datos por defecto.")
+        weather_data = {
+            "temperature": 25.0,
+            "humidity": 60,
+            "condition": "Datos climáticos no disponibles",
+            "icon": "01d",
+        }
 
-    # ── Respuesta Temporal (Ignorando DB/Gemini) ─────────
-    return {
-        "plaga_detectada": f"Imágenes: {len(valid_images)} | Clima: {weather_data.get('temperature', 'N/A')}°C",
-        "nivel_gravedad": "INFO",
-        "prioridad": "BAJA",
-        "recomendaciones": [
-            "Conexión Frontend-Backend Exitosa.",
-            f"Archivos procesados: {len(valid_images)} imagen(es).",
-            f"Audio recibido: {'Sí' if audio is not None else 'No'}.",
-            f"Notas: {text_notes or 'Ninguna'}"
-        ],
-        "productos_sugeridos": [
-            f"Temp: {weather_data.get('temperature', 'N/A')}°C",
-            f"Humedad: {weather_data.get('humidity', 'N/A')}%",
-            f"Condición: {weather_data.get('condition', 'N/A')}"
-        ],
-        "confianza": 1.0
+    # ── 5. PASO 2: Analizar con Gemini ───────────────────
+    logger.info("🤖 Paso 2/3: Enviando imágenes a Gemini 2.5 Flash...")
+    gemini_result = await gemini_service.analyze_images(
+        images=valid_images,
+        weather_data=weather_data,
+        text_notes=text_notes,
+    )
+    pest_name = gemini_result.get("pest_name", "No identificada")
+    logger.info(f"   ✓ Plaga detectada: {pest_name}")
+    logger.info(f"   ✓ Severidad: {gemini_result.get('severity_level')}")
+    logger.info(f"   ✓ Confianza: {gemini_result.get('confidence')}")
+
+    # ── 6. PASO 3: Consultar Neo4j para tratamientos ─────
+    logger.info("🔗 Paso 3/3: Consultando Neo4j para tratamientos...")
+    neo4j_result = await neo4j_service.get_treatment_recommendation(
+        pest_name=pest_name,
+        current_temp=weather_data.get("temperature", 25.0),
+        current_humidity=weather_data.get("humidity", 60),
+    )
+    logger.info(f"   ✓ Tratamientos encontrados: {len(neo4j_result.get('treatments', []))}")
+    logger.info(f"   ✓ Productos encontrados: {len(neo4j_result.get('products', []))}")
+    logger.info(f"   ✓ Clima favorable: {neo4j_result.get('climate_context', {}).get('climate_favorable')}")
+
+    # ── 7. Consolidar respuesta final ────────────────────
+    # Extraer recomendaciones de Neo4j como lista legible
+    recomendaciones = []
+    for t in neo4j_result.get("treatments", []):
+        rec = t.get("name", "")
+        method = t.get("application_method", "")
+        if rec:
+            recomendaciones.append(f"{rec}: {method}" if method else rec)
+
+    # Si no hay tratamientos de Neo4j, usar el plan de acción de Gemini
+    if not recomendaciones:
+        action_plan = gemini_result.get("action_plan", "")
+        if action_plan:
+            recomendaciones = [action_plan]
+        else:
+            recomendaciones = ["Consultar con un agrónomo local para evaluación presencial."]
+
+    # Extraer productos de Neo4j como lista legible
+    productos = []
+    for p in neo4j_result.get("products", []):
+        name = p.get("name", "")
+        dosage = p.get("dosage", "")
+        if name:
+            productos.append(f"{name} ({dosage})" if dosage else name)
+
+    # Si no hay productos de Neo4j, usar los sugeridos por Gemini
+    if not productos:
+        productos = ["Consultar con proveedor local de insumos agrícolas"]
+
+    response = {
+        # Datos principales para Flutter
+        "plaga_detectada": pest_name,
+        "nivel_gravedad": gemini_result.get("severity_level", "MODERADO"),
+        "prioridad": _map_severity_to_priority(gemini_result.get("severity_level", "MODERADO")),
+        "confianza": gemini_result.get("confidence", 0.0),
+        "recomendaciones": recomendaciones,
+        "productos_sugeridos": productos,
+
+        # Datos extendidos
+        "diagnostico_ia": {
+            "pest_name": pest_name,
+            "pest_type": gemini_result.get("pest_type", "OTRO"),
+            "severity_level": gemini_result.get("severity_level", "MODERADO"),
+            "propagation_risk": gemini_result.get("propagation_risk", "MODERADO"),
+            "economic_impact_usd_ha": gemini_result.get("economic_impact_estimate", 0.0),
+            "description": gemini_result.get("description", ""),
+            "confidence": gemini_result.get("confidence", 0.0),
+        },
+        "clima": weather_data,
+        "conocimiento_grafo": {
+            "treatments": neo4j_result.get("treatments", []),
+            "products": neo4j_result.get("products", []),
+            "climate_favorable": neo4j_result.get("climate_context", {}).get("climate_favorable", False),
+            "affected_crops": neo4j_result.get("affected_crops", []),
+            "source": neo4j_result.get("source", "no_data"),
+        },
+        "metadata": {
+            "user_id": str(parsed_user_id),
+            "latitude": latitude,
+            "longitude": longitude,
+            "images_count": len(valid_images),
+            "audio_received": audio is not None,
+        },
     }
 
+    logger.info("═══════════════════════════════════════════════════════")
+    logger.info("  ✅ ANÁLISIS COMPLETADO EXITOSAMENTE")
+    logger.info(f"  Plaga: {pest_name} | Severidad: {response['nivel_gravedad']}")
+    logger.info(f"  Tratamientos: {len(recomendaciones)} | Productos: {len(productos)}")
+    logger.info("═══════════════════════════════════════════════════════")
 
-# ── GET /{id} — Consultar diagnóstico por ID ────────────
-@router.get(
-    "/{diagnosis_id}",
-    response_model=DiagnosisResponse,
-    summary="Obtener diagnóstico por ID",
-)
-def get_diagnosis(
-    diagnosis_id: uuid.UUID,
-    db: Session = Depends(get_db),
-):
-    """Recupera un diagnóstico existente con sus adjuntos."""
-    diagnosis = (
-        db.query(Diagnosis)
-        .filter(Diagnosis.id == diagnosis_id)
-        .first()
-    )
-    if not diagnosis:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Diagnóstico {diagnosis_id} no encontrado.",
-        )
-    return diagnosis
+    return response
 
 
-# ── GET /user/{user_id} — Diagnósticos por usuario ──────
-@router.get(
-    "/user/{user_id}",
-    response_model=list[DiagnosisResponse],
-    summary="Listar diagnósticos de un usuario",
-)
-def get_user_diagnoses(
-    user_id: uuid.UUID,
-    db: Session = Depends(get_db),
-    skip: int = 0,
-    limit: int = 20,
-):
-    """Lista todos los diagnósticos de un usuario con paginación."""
-    diagnoses = (
-        db.query(Diagnosis)
-        .filter(Diagnosis.user_id == user_id)
-        .order_by(Diagnosis.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-    return diagnoses
+def _map_severity_to_priority(severity: str) -> str:
+    """Mapea severity_level de Gemini a prioridad para Flutter."""
+    mapping = {
+        "BAJO": "BAJA",
+        "MODERADO": "MEDIA",
+        "ALTO": "ALTA",
+        "CRITICO": "URGENTE",
+    }
+    return mapping.get(severity.upper(), "MEDIA")
