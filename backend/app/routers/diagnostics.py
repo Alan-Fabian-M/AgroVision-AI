@@ -237,6 +237,14 @@ async def analyze_crop(
     logger.info(f"  Tratamientos: {len(recomendaciones)} | Productos: {len(productos)}")
     logger.info("═══════════════════════════════════════════════════════")
 
+    # --- Simulación de Alerta Fitosanitaria para la Hackathon ---
+    try:
+        from app.services.notifications import send_epidemiological_alert
+        if response["prioridad"] in ["ALTA", "URGENTE"] and pest_name != "No identificada":
+            send_epidemiological_alert(pest_name=pest_name, distance_km=5.0)
+    except Exception as e:
+        logger.error(f"Error enviando alerta fitosanitaria push: {e}")
+
     return response
 
 

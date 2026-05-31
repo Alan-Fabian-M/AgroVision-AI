@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../constants/api_constants.dart';
@@ -17,12 +18,18 @@ class WeatherData {
   });
 }
 
-// Simulamos la respuesta que vendrá del backend (FastAPI) usando la ubicación
+const _weatherApiKey = '90d448e63a554b44925a501bbe1884c9';
+
 final weatherProvider = FutureProvider<WeatherData?>((ref) async {
   final locationAsync = ref.watch(locationProvider);
-  
-  if (!locationAsync.hasValue || locationAsync.value == null) {
-    return null;
+
+  // Coordenadas por defecto: Santa Cruz de la Sierra
+  double lat = -17.7863;
+  double lon = -63.1812;
+
+  if (locationAsync.hasValue && locationAsync.value != null) {
+    lat = locationAsync.value!.latitude;
+    lon = locationAsync.value!.longitude;
   }
 
   try {

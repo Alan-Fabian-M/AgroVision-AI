@@ -1,35 +1,30 @@
+import 'dart:convert';
 import 'dart:io';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:go_router/go_router.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../theme/app_theme.dart';
 import '../core/providers/location_provider.dart';
 import '../core/constants/api_constants.dart';
-import '../features/auth/presentation/providers/auth_provider.dart';
 
-class AnalysisResultScreen extends ConsumerStatefulWidget {
+class AnalysisResultScreen extends StatefulWidget {
   final List<String> imagePaths;
   final String descripcion;
-  final String? audioPath;
 
   const AnalysisResultScreen({
     super.key,
     required this.imagePaths,
     required this.descripcion,
-    this.audioPath,
   });
 
   @override
-  ConsumerState<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
 }
 
-class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
+class _AnalysisResultScreenState extends State<AnalysisResultScreen>
     with SingleTickerProviderStateMixin {
   _AnalysisState _state = _AnalysisState.loading;
   _DiagnosisResult? _result;
+  bool _savedToDb = false;
   late AnimationController _pulseController;
 
   @override
@@ -50,7 +45,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
 
   Future<void> _runAnalysis() async {
     try {
-      final dio = ref.read(dioProvider);
+      final dio = Dio();
       final locationAsync = ref.read(locationProvider);
       double lat = 0.0;
       double lon = 0.0;
@@ -64,53 +59,44 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
       for (final path in widget.imagePaths) {
         final file = File(path);
         if (await file.exists()) {
-          imageFiles.add(await MultipartFile.fromFile(path, filename: path.split('/').last));
+          request.files.add(await http.MultipartFile.fromPath('imagenes', path));
         }
       }
 
-      // IMPORTANTE: Los nombres de los campos DEBEN coincidir con los de FastAPI
       Map<String, dynamic> formDataMap = {
-        'latitude': lat,
-        'longitude': lon,
-        'user_id': '00000000-0000-0000-0000-000000000001',
-        'text_notes': widget.descripcion.isNotEmpty ? widget.descripcion : null,
-        'images': imageFiles,
+        'descripcion': widget.descripcion,
+        'tipo': widget.tipo,
+        'latitud': lat,
+        'longitud': lon,
+        'user_id': 'usuario_123',
+        'imagenes': imageFiles,
       };
 
       if (widget.audioPath != null) {
         final audioFile = File(widget.audioPath!);
         if (await audioFile.exists()) {
-          formDataMap['audio'] = await MultipartFile.fromFile(
-            widget.audioPath!, 
-            filename: widget.audioPath!.split('/').last,
-          );
+          formDataMap['audio'] = await MultipartFile.fromFile(widget.audioPath!, filename: widget.audioPath!.split('/').last);
         }
       }
 
       final formData = FormData.fromMap(formDataMap);
 
-      final secureStorage = const FlutterSecureStorage();
-      final token = await secureStorage.read(key: 'access_token');
-
-      debugPrint('📡 Enviando análisis a: ${ApiConstants.analyzeDiagnostic}');
-      debugPrint('🔑 Token disponible: ${token != null}');
-
       final response = await dio.post(
         ApiConstants.analyzeDiagnostic,
         data: formData,
         options: Options(
-          headers: {
-            if (token != null) 'Authorization': 'Bearer $token',
-          },
-          receiveTimeout: const Duration(seconds: 60),
-          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30),
         ),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final guardado = data['guardado'] == true;
         setState(() {
-          _result = _DiagnosisResult.fromJson(response.data);
+          _result = _DiagnosisResult.fromJson(data);
           _state = _AnalysisState.done;
+          _savedToDb = guardado;
         });
       } else {
         _useMockResult();
@@ -274,11 +260,6 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
           // Imagen del cultivo
           _buildCropImage(),
           const SizedBox(height: 16),
-
-          if (r.clima != null) ...[
-            _buildWeatherCard(r.clima!),
-            const SizedBox(height: 16),
-          ],
 
           // Tarjeta de problema
           _buildProblemCard(r, riskColor, riskLabel),
@@ -566,7 +547,14 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
             width: double.infinity,
             height: 60,
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () => Navigator.pushNamed(
+                context,
+                '/insumos',
+                arguments: {
+                  'plaga': r.plagaDetectada,
+                  'productos': r.productosSugeridos,
+                },
+              ),
               icon: const Icon(Icons.shopping_cart, size: 22),
               label: Text(
                 'Ver Insumos',
@@ -581,6 +569,24 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
             ),
           ),
           const SizedBox(height: 12),
+          // Botón Hablar con Asesor
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.chat_bubble_outline, size: 20),
+              label: Text(
+                'Hablar con Asesor',
+                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.onSurface,
+                side: const BorderSide(color: AppColors.outlineVariant, width: 2),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -600,7 +606,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
               onTap: () => context.go('/')),
           _NavBtn(icon: Icons.photo_camera, label: 'Capture', active: true, onTap: () {}),
           _NavBtn(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () {}),
-          _NavBtn(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),
+          _NavBtn(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => Navigator.pushNamed(context, '/profile')),
         ],
       ),
     );

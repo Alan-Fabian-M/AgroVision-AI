@@ -14,56 +14,9 @@ class CaptureScreen extends ConsumerStatefulWidget {
 }
 
 class _CaptureScreenState extends ConsumerState<CaptureScreen> {
-  bool _isProcessing = false;
   List<XFile> _selectedImages = [];
   int _currentPage = 0;
 
-  Future<void> _pickFromGallery() async {
-    if (_isProcessing) return;
-    setState(() => _isProcessing = true);
-    try {
-      final picker = ImagePicker();
-      final files = await picker.pickMultiImage(
-        imageQuality: 60,
-        maxWidth: 1920,
-        maxHeight: 1920,
-      );
-      if (files.isNotEmpty && mounted) {
-        setState(() {
-          _selectedImages.addAll(files);
-          _currentPage = 0;
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  Future<void> _takePhoto() async {
-    if (_isProcessing) return;
-    setState(() => _isProcessing = true);
-    try {
-      final picker = ImagePicker();
-      final file = await picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 60,
-        maxWidth: 1920,
-        maxHeight: 1920,
-      );
-      if (file != null && mounted) {
-        setState(() {
-          _selectedImages.add(file);
-          _currentPage = 0;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error taking picture: $e');
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  void _navigateToPreview() {
     if (_selectedImages.isEmpty) return;
     context.push(
       '/preview',
@@ -114,7 +67,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
           // Controles Centrales
           Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -156,11 +108,10 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                     color: AppColors.secondary,
                     onTap: _pickFromGallery,
                   ),
-                ],
-              ),
-            ),
-          ),
-          
+          // Controles inferiores
+          Positioned(
+            bottom: 0,
+          )
           // Indicador de carga central (si aplica)
           if (_isProcessing)
             Container(
@@ -175,7 +126,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   }
 
   Widget _buildActionCard({
-    required String title,
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
