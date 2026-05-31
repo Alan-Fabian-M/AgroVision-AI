@@ -1,5 +1,5 @@
 """
-Seed script for Neo4j Knowledge Graph - AgroGuardian AI
+Seed script for Neo4j Knowledge Graph - AgroVision AI
 Santa Cruz, Bolivia agricultural model
 
 Usage:
