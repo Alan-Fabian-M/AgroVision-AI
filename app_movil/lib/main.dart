@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 import 'screens/capture_screen.dart';
@@ -11,7 +10,7 @@ import 'screens/profile_screen.dart';
 import 'screens/insumo_screen.dart';
 
 void main() {
-  runApp(const ProviderScope(child: AgroGuardianApp()));
+  runApp(const AgroGuardianApp());
 }
 
 class AgroGuardianApp extends StatelessWidget {
@@ -27,6 +26,8 @@ class AgroGuardianApp extends StatelessWidget {
       routes: {
         '/': (_) => const HomeScreen(),
         '/capture': (_) => const CaptureScreen(),
+        '/advisor': (_) => const AdvisorScreen(),
+        '/profile': (_) => const ProfileScreen(),
         '/field': (ctx) {
           final args = ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
           return FieldMapScreen(
@@ -34,8 +35,6 @@ class AgroGuardianApp extends StatelessWidget {
             nuevaPrioridad: args?['prioridad'] as String?,
           );
         },
-        '/advisor': (_) => const AdvisorScreen(),
-        '/profile': (_) => const ProfileScreen(),
         '/insumos': (ctx) {
           final args = ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
           return InsumoScreen(
@@ -49,7 +48,7 @@ class AgroGuardianApp extends StatelessWidget {
           final args = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
             builder: (_) => PreviewScreen(
-              imagePaths: args['imagePaths'] as List<String>,
+              imagePath: args['imagePath'] as String,
               tipo: args['tipo'] as String,
             ),
           );
@@ -61,7 +60,6 @@ class AgroGuardianApp extends StatelessWidget {
               imagePaths: List<String>.from(args['imagePaths'] as List),
               tipo: args['tipo'] as String,
               descripcion: args['descripcion'] as String? ?? '',
-              audioPath: args['audioPath'] as String?,
             ),
           );
         }
