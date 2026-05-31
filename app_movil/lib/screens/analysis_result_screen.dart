@@ -67,30 +67,37 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
         }
       }
 
+      // IMPORTANTE: Los nombres de los campos DEBEN coincidir con los de FastAPI
       Map<String, dynamic> formDataMap = {
-        'descripcion': widget.descripcion,
-        'tipo': widget.tipo,
-        'latitud': lat,
-        'longitud': lon,
-        'user_id': 'usuario_123',
-        'imagenes': imageFiles,
+        'latitude': lat,
+        'longitude': lon,
+        'user_id': '00000000-0000-0000-0000-000000000001',
+        'text_notes': widget.descripcion.isNotEmpty ? widget.descripcion : null,
+        'images': imageFiles,
       };
 
       if (widget.audioPath != null) {
         final audioFile = File(widget.audioPath!);
         if (await audioFile.exists()) {
-          formDataMap['audio'] = await MultipartFile.fromFile(widget.audioPath!, filename: widget.audioPath!.split('/').last);
+          formDataMap['audio'] = await MultipartFile.fromFile(
+            widget.audioPath!, 
+            filename: widget.audioPath!.split('/').last,
+          );
         }
       }
 
       final formData = FormData.fromMap(formDataMap);
 
+      debugPrint('📡 Enviando análisis a: ${ApiConstants.analyzeDiagnostic}');
+      debugPrint('📍 GPS: lat=$lat, lon=$lon');
+      debugPrint('📸 Imágenes: ${imageFiles.length}');
+
       final response = await dio.post(
         ApiConstants.analyzeDiagnostic,
         data: formData,
         options: Options(
-          receiveTimeout: const Duration(seconds: 30),
-          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 60),
+          sendTimeout: const Duration(seconds: 60),
         ),
       );
 

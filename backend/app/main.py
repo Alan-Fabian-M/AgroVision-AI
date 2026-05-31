@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.core.database import engine, Base
-from app.core.neo4j import close_driver
+from app.services.neo4j_database import close_driver as close_neo4j, verify_connectivity
 from app.core.exceptions import (
     DatabaseException,
     NotFoundException,
@@ -45,10 +45,13 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Tablas de base de datos sincronizadas.")
 
+    # Verificar conectividad con Neo4j (no-bloqueante)
+    await verify_connectivity()
+
     yield
 
     # Shutdown
-    await close_driver()
+    await close_neo4j()
     logger.info(f"{settings.PROJECT_NAME} detenido.")
 
 
