@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
+import 'package:go_router/go_router.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -174,14 +175,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.history_outlined,
           label: 'Ver historial de diagnósticos',
           color: AppColors.secondary,
-          onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false),
+          onTap: () => context.go('/'),
         ),
         const SizedBox(height: 16),
         _ActionBtn(
           icon: Icons.smart_toy_outlined,
           label: 'Hablar con un Asesor IA',
           color: AppColors.primary,
-          onTap: () => Navigator.pushNamed(context, '/advisor'),
+          onTap: () => context.push('/advisor'),
         ),
       ]),
     );
@@ -197,9 +198,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _NavBtn(icon: Icons.home_outlined,        label: 'Home',    active: false, onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false)),
-          _NavBtn(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => Navigator.pushNamed(context, '/capture')),
-          _NavBtn(icon: Icons.map_outlined,          label: 'Field',   active: false, onTap: () => Navigator.pushNamed(context, '/field')),
+          _NavBtn(icon: Icons.home_outlined,        label: 'Home',    active: false, onTap: () => context.go('/')),
+          _NavBtn(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => context.push('/capture')),
+          _NavBtn(icon: Icons.map_outlined,          label: 'Field',   active: false, onTap: () => context.push('/field')),
           _NavBtn(icon: Icons.person,                label: 'Perfil',  active: true,  onTap: () {}),
         ],
       ),

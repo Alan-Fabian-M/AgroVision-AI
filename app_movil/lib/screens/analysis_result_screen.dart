@@ -1,30 +1,35 @@
-import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../theme/app_theme.dart';
 import '../core/providers/location_provider.dart';
 import '../core/constants/api_constants.dart';
+import '../features/auth/presentation/providers/auth_provider.dart';
 
-class AnalysisResultScreen extends StatefulWidget {
+class AnalysisResultScreen extends ConsumerStatefulWidget {
   final List<String> imagePaths;
   final String descripcion;
+  final String? audioPath;
 
   const AnalysisResultScreen({
     super.key,
     required this.imagePaths,
     required this.descripcion,
+    this.audioPath,
   });
 
   @override
-  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+  ConsumerState<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
 }
 
-class _AnalysisResultScreenState extends State<AnalysisResultScreen>
+class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
     with SingleTickerProviderStateMixin {
   _AnalysisState _state = _AnalysisState.loading;
   _DiagnosisResult? _result;
-  bool _savedToDb = false;
   late AnimationController _pulseController;
 
   @override
@@ -45,7 +50,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
 
   Future<void> _runAnalysis() async {
     try {
-      final dio = Dio();
+      final dio = ref.read(dioProvider);
       final locationAsync = ref.read(locationProvider);
       double lat = 0.0;
       double lon = 0.0;
@@ -59,44 +64,53 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
       for (final path in widget.imagePaths) {
         final file = File(path);
         if (await file.exists()) {
-          request.files.add(await http.MultipartFile.fromPath('imagenes', path));
+          imageFiles.add(await MultipartFile.fromFile(path, filename: path.split('/').last));
         }
       }
 
+      // IMPORTANTE: Los nombres de los campos DEBEN coincidir con los de FastAPI
       Map<String, dynamic> formDataMap = {
-        'descripcion': widget.descripcion,
-        'tipo': widget.tipo,
-        'latitud': lat,
-        'longitud': lon,
-        'user_id': 'usuario_123',
-        'imagenes': imageFiles,
+        'latitude': lat,
+        'longitude': lon,
+        'user_id': '00000000-0000-0000-0000-000000000001',
+        'text_notes': widget.descripcion.isNotEmpty ? widget.descripcion : null,
+        'images': imageFiles,
       };
 
       if (widget.audioPath != null) {
         final audioFile = File(widget.audioPath!);
         if (await audioFile.exists()) {
-          formDataMap['audio'] = await MultipartFile.fromFile(widget.audioPath!, filename: widget.audioPath!.split('/').last);
+          formDataMap['audio'] = await MultipartFile.fromFile(
+            widget.audioPath!, 
+            filename: widget.audioPath!.split('/').last,
+          );
         }
       }
 
       final formData = FormData.fromMap(formDataMap);
 
+      final secureStorage = const FlutterSecureStorage();
+      final token = await secureStorage.read(key: 'access_token');
+
+      debugPrint('📡 Enviando análisis a: ${ApiConstants.analyzeDiagnostic}');
+      debugPrint('🔑 Token disponible: ${token != null}');
+
       final response = await dio.post(
         ApiConstants.analyzeDiagnostic,
         data: formData,
         options: Options(
-          receiveTimeout: const Duration(seconds: 30),
-          sendTimeout: const Duration(seconds: 30),
+          headers: {
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+          receiveTimeout: const Duration(seconds: 60),
+          sendTimeout: const Duration(seconds: 60),
         ),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final guardado = data['guardado'] == true;
         setState(() {
-          _result = _DiagnosisResult.fromJson(data);
+          _result = _DiagnosisResult.fromJson(response.data);
           _state = _AnalysisState.done;
-          _savedToDb = guardado;
         });
       } else {
         _useMockResult();
@@ -113,10 +127,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
         nivelGravedad: 'GRAVE',
         prioridad: 'ALTA',
         recomendaciones: [
-          'Aplicar fungicida de forma urgente.',
+          'Aplicar tratamiento de forma urgente.',
           'Revisar el lote vecino para evitar que se contagie.',
         ],
-        productosSugeridos: ['Fungicida triazol', 'Fungicida cúprico'],
+        productosQuimicos: ['Clorpirifos 480 EC (1.0 L/ha)', 'Metomil 215 SL (0.4 L/ha)'],
+        alternativasNaturales: ['Bacillus thuringiensis var. kurstaki', 'Extracto de Neem'],
         confianza: 0.87,
       );
       _state = _AnalysisState.done;
@@ -253,22 +268,145 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
     final riskColor = isHighRisk ? AppColors.error : AppColors.secondary;
     final riskLabel = _riskLabel(r.prioridad);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      child: Column(
-        children: [
-          // Imagen del cultivo
-          _buildCropImage(),
-          const SizedBox(height: 16),
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 40 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        child: Column(
+          children: [
+            _buildCropImage(),
+            const SizedBox(height: 16),
 
-          // Tarjeta de problema
-          _buildProblemCard(r, riskColor, riskLabel),
-          const SizedBox(height: 16),
+            if (r.clima != null) ...[
+              _buildWeatherCard(r.clima!),
+              const SizedBox(height: 16),
+            ],
 
-          // Tarjeta de solución
-          _buildSolutionCard(r),
-        ],
+            _buildProblemCard(r, riskColor, riskLabel),
+            const SizedBox(height: 16),
+
+            _buildSolutionCard(r),
+            const SizedBox(height: 16),
+
+            _buildProvidersList(r),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildProvidersList(_DiagnosisResult r) {
+    final allProducts = [...r.productosQuimicos, ...r.alternativasNaturales];
+    if (allProducts.isEmpty) return const SizedBox.shrink();
+
+    final companies = ['Agropartners', 'AgroHungaro', 'Mainter', 'Ciagro', 'Interagro'];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            'Proveedores Locales (Santa Cruz)',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.onSurface,
+            ),
+          ),
+        ),
+        ...allProducts.asMap().entries.map((entry) {
+          final index = entry.key;
+          final productName = entry.value;
+          final companyName = companies[index % companies.length];
+          
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.outlineVariant),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                )
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryContainer.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.storefront, color: AppColors.primary, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        productName,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.business, size: 14, color: AppColors.onSurfaceVariant),
+                          const SizedBox(width: 4),
+                          Text(
+                            companyName,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on, size: 14, color: AppColors.onSurfaceVariant),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Santa Cruz, Bolivia',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
+              ],
+            ),
+          );
+        }),
+      ],
     );
   }
 
@@ -431,7 +569,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
             ),
           ),
           const SizedBox(height: 12),
-          // Confianza
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -465,7 +602,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Título solución
           Row(
             children: [
               const Icon(Icons.task_alt, color: AppColors.primary, size: 30),
@@ -481,7 +617,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
             ],
           ),
           const SizedBox(height: 16),
-          // Recomendaciones
           ...r.recomendaciones.map((rec) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
@@ -506,87 +641,132 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
                   ],
                 ),
               )),
-          // Productos sugeridos
-          if (r.productosSugeridos.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Productos sugeridos',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.onSurfaceVariant,
+          // Alternativas Ecológicas
+          if (r.alternativasNaturales.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F8E9), // Light green background
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFAED581), width: 1.5),
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: r.productosSugeridos
-                  .map((p) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: AppColors.outlineVariant),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('🍃', style: TextStyle(fontSize: 18)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Alternativas Ecológicas',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF33691E),
                         ),
-                        child: Text(
-                          p,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.onSurface,
-                          ),
-                        ),
-                      ))
-                  .toList(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: r.alternativasNaturales
+                        .map((p) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: const Color(0xFFC5E1A5)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  )
+                                ],
+                              ),
+                              child: Text(
+                                p,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF2E7D32),
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ],
+              ),
             ),
           ],
-          const SizedBox(height: 24),
-          // Botón Ver Insumos
-          SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/insumos',
-                arguments: {
-                  'plaga': r.plagaDetectada,
-                  'productos': r.productosSugeridos,
-                },
+
+          // Control Químico
+          if (r.productosQuimicos.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E1), // Light amber background
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
               ),
-              icon: const Icon(Icons.shopping_cart, size: 22),
-              label: Text(
-                'Ver Insumos',
-                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.science, size: 20, color: Color(0xFFF57F17)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Control Químico',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFF57F17),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: r.productosQuimicos
+                        .map((p) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: const Color(0xFFFFE082)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  )
+                                ],
+                              ),
+                              child: Text(
+                                p,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFFE65100),
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Botón Hablar con Asesor
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.chat_bubble_outline, size: 20),
-              label: Text(
-                'Hablar con Asesor',
-                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.onSurface,
-                side: const BorderSide(color: AppColors.outlineVariant, width: 2),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
+          ],
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -606,7 +786,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
               onTap: () => context.go('/')),
           _NavBtn(icon: Icons.photo_camera, label: 'Capture', active: true, onTap: () {}),
           _NavBtn(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () {}),
-          _NavBtn(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => Navigator.pushNamed(context, '/profile')),
+          _NavBtn(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => context.go('/profile')),
         ],
       ),
     );
@@ -647,7 +827,8 @@ class _DiagnosisResult {
   final String nivelGravedad;
   final String prioridad;
   final List<String> recomendaciones;
-  final List<String> productosSugeridos;
+  final List<String> productosQuimicos;
+  final List<String> alternativasNaturales;
   final double confianza;
   final Map<String, dynamic>? clima;
 
@@ -656,7 +837,8 @@ class _DiagnosisResult {
     required this.nivelGravedad,
     required this.prioridad,
     required this.recomendaciones,
-    required this.productosSugeridos,
+    required this.productosQuimicos,
+    required this.alternativasNaturales,
     required this.confianza,
     this.clima,
   });
@@ -665,15 +847,12 @@ class _DiagnosisResult {
     List<String> parseRecs(dynamic raw) {
       if (raw is List) return raw.map((e) => e.toString()).toList();
       if (raw is String) {
-        // Si tiene saltos de línea (típico de Gemini), dividimos por ahí
         if (raw.contains('\n')) {
           return raw.split('\n')
-              // Eliminar solo las viñetas del INICIO de la línea (*, -, 1.), pero mantener los ** de negrita
               .map((s) => s.replaceAll(RegExp(r'^[-*]\s*|^\d+\.\s*'), '').trim())
               .where((s) => s.isNotEmpty)
               .toList();
         }
-        // Fallback: si es un párrafo largo, lo separamos por oraciones ('. ')
         return raw.split('. ')
             .map((s) => s.trim())
             .where((s) => s.isNotEmpty)
@@ -694,7 +873,8 @@ class _DiagnosisResult {
       nivelGravedad:  json['nivel_gravedad']  ?? 'MEDIO',
       prioridad:      json['prioridad']        ?? 'MEDIA',
       recomendaciones: parseRecs(json['recomendaciones']),
-      productosSugeridos: parseProducts(json['productos_sugeridos']),
+      productosQuimicos: parseProducts(json['productos_quimicos'] ?? json['productos_sugeridos']),
+      alternativasNaturales: parseProducts(json['alternativas_naturales']),
       confianza: (json['confianza'] as num?)?.toDouble() ?? 0.0,
       clima: json['clima'] as Map<String, dynamic>?,
     );

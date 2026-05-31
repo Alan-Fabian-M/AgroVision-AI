@@ -127,7 +127,7 @@ class _FieldMapScreenState extends State<FieldMapScreen> {
               ),
               const SizedBox(width: 10),
               Text(
-                'AgroGuardian AI',
+                'AgroVision AI',
                 style: GoogleFonts.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -360,7 +360,7 @@ class _FieldMapScreenState extends State<FieldMapScreen> {
           _NavBtn(icon: Icons.photo_camera_outlined, label: 'Capture', active: false,
               onTap: () => context.push('/capture')),
           _NavBtn(icon: Icons.map, label: 'Field', active: true, onTap: () {}),
-          _NavBtn(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),
+          _NavBtn(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => context.go('/profile')),
         ],
       ),
     );

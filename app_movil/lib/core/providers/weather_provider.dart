@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../constants/api_constants.dart';
@@ -18,8 +17,6 @@ class WeatherData {
   });
 }
 
-const _weatherApiKey = '90d448e63a554b44925a501bbe1884c9';
-
 final weatherProvider = FutureProvider<WeatherData?>((ref) async {
   final locationAsync = ref.watch(locationProvider);
 
@@ -34,7 +31,7 @@ final weatherProvider = FutureProvider<WeatherData?>((ref) async {
 
   try {
     final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10)));
-    final url = '${ApiConstants.baseUrl}/weather?lat=${locationAsync.value!.latitude}&lon=${locationAsync.value!.longitude}';
+    final url = '${ApiConstants.baseUrl}/weather?lat=$lat&lon=$lon';
     final response = await dio.get(url);
     if (response.statusCode == 200) {
       final data = response.data;
@@ -46,7 +43,7 @@ final weatherProvider = FutureProvider<WeatherData?>((ref) async {
       );
     }
   } catch (e) {
-    // Si falla, caemos en datos por defecto pero lo hacemos explícito.
+    // Si falla, caemos en datos por defecto
   }
   return const WeatherData(
     temperature: 0.0,

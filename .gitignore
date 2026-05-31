@@ -1,0 +1,54 @@
+# ==============================================================================
+# SECRETS / TOKENS (¡CRÍTICO!)
+# ==============================================================================
+# Ocultar claves de Firebase y archivos de entorno
+*.json
+!package.json
+!app_movil/pubspec.lock
+*firebase-adminsdk*.json
+backend/agrovisionai-19de6-firebase-adminsdk-fbsvc-e6c7765097.json
+.env
+.env.*
+
+# ==============================================================================
+# IDEs y OS
+# ==============================================================================
+.DS_Store
+.vscode/
+.idea/
+*.log
+*.swp
+
+# ==============================================================================
+# BACKEND (Python)
+# ==============================================================================
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/.pytest_cache/
+backend/venv/
+backend/env/
+backend/.venv/
+backend/pip-log.txt
+backend/pip-delete-this-directory.txt
+
+# ==============================================================================
+# APP MÓVIL (Flutter)
+# ==============================================================================
+app_movil/.dart_tool/
+app_movil/.flutter-plugins
+app_movil/.flutter-plugins-dependencies
+app_movil/.pub-cache/
+app_movil/.pub/
+app_movil/build/
+app_movil/**/*.iml
+app_movil/android/key.properties
+app_movil/ios/Flutter/App.framework
+app_movil/ios/Flutter/Flutter.framework
+app_movil/ios/Flutter/Flutter.podspec
+app_movil/ios/Flutter/Generated.xcconfig
+app_movil/ios/Flutter/app.flx
+app_movil/ios/Flutter/app.zip
+app_movil/ios/Flutter/flutter_assets/
+app_movil/ios/Flutter/flutter_export_environment.sh
+app_movil/ios/Pods/

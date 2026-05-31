@@ -355,7 +355,7 @@ class HomeScreen extends ConsumerWidget {
             _NavItem(icon: Icons.home, label: 'Home', active: true, onTap: () {}),
             _NavItem(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => context.push('/capture')),
             _NavItem(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () => context.push('/field')),
-            _NavItem(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),
+            _NavItem(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => context.go('/profile')),
           ],
         ),
       ),

@@ -24,6 +24,7 @@ import app.models  # noqa: F401
 from app.routers.auth import router as auth_router
 from app.routers.diagnostics import router as diagnostics_router
 from app.routers.weather import router as weather_router
+from app.routers.notifications import router as notifications_router
 # from app.routers.knowledge import router as knowledge_router
 
 settings = get_settings()
@@ -101,6 +102,7 @@ app.mount(
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(diagnostics_router, prefix=settings.API_V1_PREFIX)
 app.include_router(weather_router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications_router, prefix=settings.API_V1_PREFIX)
 # app.include_router(knowledge_router, prefix=settings.API_V1_PREFIX)
 
 # ── Health check ─────────────────────────────────────────

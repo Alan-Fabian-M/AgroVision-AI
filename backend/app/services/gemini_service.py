@@ -33,7 +33,7 @@ class GeminiService:
         settings = get_settings()
         self.api_key = settings.GEMINI_API_KEY
         self._client = None
-        self._model_name = "gemini-2.5-flash"
+        self._model_name = "gemini-flash-latest"
 
     def _get_client(self):
         """Lazy-init del cliente de Gemini."""
@@ -85,10 +85,14 @@ fitosanitario de cultivos tropicales de la zona de Santa Cruz, Bolivia.
 3. SEVERIDAD: Clasifica en BAJO | MODERADO | ALTO | CRITICO.
 
 4. RIESGO DE PROPAGACIÓN: Clasifica en BAJO | MODERADO | ALTO | MUY_ALTO.
-   JUSTIFICA explícitamente cómo las condiciones climáticas actuales (temperatura, humedad) aceleran o frenan el ciclo biológico de esta plaga.
+   Considera las condiciones climáticas actuales.
 
 5. IMPACTO ECONÓMICO: Estima la pérdida en USD/hectárea.
    Referencia: Soya = 3 ton/ha × $350/ton = $1,050/ha potencial.
+
+6. RECOMENDACIÓN DUAL DE PRODUCTOS: Sugiere vías de control separadas:
+   - chemical_products: Productos agroquímicos comerciales (con ingrediente activo y dosis de referencia). Si no aplica, retorna lista vacía.
+   - natural_alternatives: Alternativas biológicas, ecológicas o extractos (ej: Bacillus thuringiensis). Si no aplica, retorna lista vacía.
 
 ═══════════════════════════════════════════════════════
   FORMATO DE RESPUESTA — JSON EXCLUSIVO
@@ -107,8 +111,10 @@ REGLAS CRÍTICAS:
     "propagation_risk": "BAJO | MODERADO | ALTO | MUY_ALTO",
     "economic_impact_estimate": 0.0,
     "confidence": 0.0,
-    "description": "Descripción breve del diagnóstico, detallando el impacto del clima actual en la proliferación.",
-    "action_plan": "Paso 1: Haz esto.\nPaso 2: Usa **este producto**.\nPaso 3: Revisa esto."
+    "description": "Descripción breve del diagnóstico y lo observado en las imágenes",
+    "action_plan": "Paso 1: Haz esto.\nPaso 2: Revisa esto (excluye recomendaciones de productos en este campo).",
+    "chemical_products": ["Nombre de químico 1 (Dosis)", "Nombre de químico 2 (Dosis)"],
+    "natural_alternatives": ["Alternativa natural 1", "Alternativa natural 2"]
 }}
 """
     async def analyze_images(
@@ -164,7 +170,8 @@ REGLAS CRÍTICAS:
             if raw_text.startswith("```"):
                 raw_text = raw_text.replace("```json", "").replace("```", "").strip()
 
-            parsed = json.loads(raw_text)
+            #parsed = json.loads(raw_text)
+            parsed = json.loads(raw_text, strict=False)
             logger.info(f"✓ Gemini respondió con JSON válido: {list(parsed.keys())}")
 
             # Validar campos mínimos
@@ -189,6 +196,8 @@ REGLAS CRÍTICAS:
             "confidence": 0.0,
             "description": "Sin descripción disponible",
             "action_plan": "Se recomienda inspección manual del cultivo.",
+            "chemical_products": [],
+            "natural_alternatives": [],
         }
         for key, default in defaults.items():
             if key not in data or data[key] is None:
@@ -214,6 +223,8 @@ REGLAS CRÍTICAS:
             "confidence": 0.0,
             "description": f"Análisis automático no disponible. {error_msg}",
             "action_plan": "Consultar con un agrónomo local para inspección presencial.",
+            "chemical_products": [],
+            "natural_alternatives": [],
         }
 
 

@@ -80,7 +80,8 @@ class Neo4jRecommendationService:
                                name: product.name,
                                active_ingredient: product.active_ingredient,
                                dosage: product.dosage,
-                               safety_period: product.safety_period
+                               safety_period: product.safety_period,
+                               treatment_type: treatment.type
                            }) AS products,
                            collect(DISTINCT crop.name) AS affected_crops
                     """,
@@ -107,6 +108,14 @@ class Neo4jRecommendationService:
                     if p.get("name") is not None
                 ]
 
+                natural_products = []
+                chemical_products = []
+                for p in products:
+                    if p.get("treatment_type") == "Control Biológico" or p.get("treatment_type") == "Control Orgánico":
+                        natural_products.append(p)
+                    else:
+                        chemical_products.append(p)
+
                 return {
                     "pest": {
                         "name": record["pest_name"],
@@ -121,7 +130,8 @@ class Neo4jRecommendationService:
                         "climate_description": record.get("climate_description"),
                     },
                     "treatments": treatments,
-                    "products": products,
+                    "natural_products": natural_products,
+                    "chemical_products": chemical_products,
                     "affected_crops": [
                         c for c in record.get("affected_crops", []) if c is not None
                     ],
@@ -153,7 +163,8 @@ class Neo4jRecommendationService:
                 "climate_description": None,
             },
             "treatments": [],
-            "products": [],
+            "natural_products": [],
+            "chemical_products": [],
             "affected_crops": [],
             "source": "no_data_available",
         }

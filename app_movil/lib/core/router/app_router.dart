@@ -9,6 +9,7 @@ import '../../screens/capture_screen.dart';
 import '../../screens/field_map_screen.dart';
 import '../../screens/preview_screen.dart';
 import '../../screens/analysis_result_screen.dart';
+import '../../screens/profile_screen.dart';
 
 // Este ChangeNotifier envuelve al authProvider para que GoRouter pueda escucharlo
 class RouterNotifier extends ChangeNotifier {
@@ -43,23 +44,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isGoingToRegister = state.matchedLocation == '/register';
       final isAuthScreen = isGoingToLogin || isGoingToRegister;
 
-      // Si el estado es initial o loading, mostrar una pantalla de carga o dejar que siga su curso
-      // (asumiremos que la lógica base mostrará un splash o un indicador)
       if (authState.status == AuthStatus.initial || authState.status == AuthStatus.loading) {
         return null;
       }
 
-      // Si no está autenticado y NO va a login/registro -> redirigir a login
       if (authState.status == AuthStatus.unauthenticated && !isAuthScreen) {
         return '/login';
       }
 
-      // Si está autenticado y VA a login/registro -> redirigir a home
       if (authState.status == AuthStatus.authenticated && isAuthScreen) {
         return '/';
       }
 
-      return null; // Continuar a donde iba
+      return null;
     },
     routes: [
       GoRoute(
@@ -88,7 +85,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final args = state.extra as Map<String, dynamic>;
           return PreviewScreen(
             imagePaths: args['imagePaths'] as List<String>,
-            tipo: args['tipo'] as String,
           );
         },
       ),
@@ -98,9 +94,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final args = state.extra as Map<String, dynamic>;
           return AnalysisResultScreen(
             imagePaths: List<String>.from(args['imagePaths'] as List),
-            tipo: args['tipo'] as String,
+            descripcion: args['descripcion'] as String? ?? '',
             audioPath: args['audioPath'] as String?,
+          );
         },
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileScreen(),
       ),
     ],
   );

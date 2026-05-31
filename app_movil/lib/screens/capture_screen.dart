@@ -14,15 +14,62 @@ class CaptureScreen extends ConsumerStatefulWidget {
 }
 
 class _CaptureScreenState extends ConsumerState<CaptureScreen> {
+  bool _isProcessing = false;
   List<XFile> _selectedImages = [];
   int _currentPage = 0;
 
+  Future<void> _pickFromGallery() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      final picker = ImagePicker();
+      final files = await picker.pickMultiImage(
+        imageQuality: 60,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (files.isNotEmpty && mounted) {
+        setState(() {
+          _selectedImages.addAll(files);
+          _currentPage = 0;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 60,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (file != null && mounted) {
+        setState(() {
+          _selectedImages.add(file);
+          _currentPage = 0;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error taking picture: $e');
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  void _navigateToPreview() {
     if (_selectedImages.isEmpty) return;
     context.push(
       '/preview',
       extra: {
         'imagePaths': _selectedImages.map((e) => e.path).toList(),
-      }, // Ya no mandamos 'tipo'
+      },
     );
   }
 
@@ -43,7 +90,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Fondo simple oscuro
           Container(color: Colors.black),
           
           // Header (Solo Atrás)
@@ -67,6 +113,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
           // Controles Centrales
           Center(
             child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -91,7 +138,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                   ),
                   const SizedBox(height: 48),
 
-                  // Botón de Cámara
                   _buildActionCard(
                     title: 'Tomar Foto',
                     icon: Icons.camera_alt,
@@ -101,18 +147,17 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                   
                   const SizedBox(height: 24),
 
-                  // Botón de Galería
                   _buildActionCard(
                     title: 'Importar de Galería',
                     icon: Icons.photo_library,
                     color: AppColors.secondary,
                     onTap: _pickFromGallery,
                   ),
-          // Controles inferiores
-          Positioned(
-            bottom: 0,
-          )
-          // Indicador de carga central (si aplica)
+                ],
+              ),
+            ),
+          ),
+          
           if (_isProcessing)
             Container(
               color: Colors.black54,
@@ -126,6 +171,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
   }
 
   Widget _buildActionCard({
+    required String title,
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
@@ -174,7 +220,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Carrusel
           PageView.builder(
             itemCount: _selectedImages.length,
             onPageChanged: (index) {
@@ -196,7 +241,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Botón Descartar / Volver a Inicio
                 GestureDetector(
                   onTap: () {
                     setState(() {
@@ -212,7 +256,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                     child: const Icon(Icons.close, color: Colors.white, size: 24),
                   ),
                 ),
-                // Indicador de página
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
@@ -228,7 +271,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                     ),
                   ),
                 ),
-                // Botón eliminar imagen actual
                 GestureDetector(
                   onTap: () {
                     setState(() {
@@ -251,7 +293,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             ),
           ),
           
-          // Botones inferiores (Analizar + Add más)
+          // Botones inferiores
           Positioned(
             bottom: MediaQuery.of(context).padding.bottom + 24,
             left: 24,
@@ -259,7 +301,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Fila para añadir más fotos
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -277,7 +318,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Botón Analizar
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(

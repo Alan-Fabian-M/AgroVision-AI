@@ -163,7 +163,7 @@ async def analyze_crop(
         current_humidity=weather_data.get("humidity", 60),
     )
     logger.info(f"   ✓ Tratamientos encontrados: {len(neo4j_result.get('treatments', []))}")
-    logger.info(f"   ✓ Productos encontrados: {len(neo4j_result.get('products', []))}")
+    logger.info(f"   ✓ Químicos: {len(neo4j_result.get('chemical_products', []))} | Naturales: {len(neo4j_result.get('natural_products', []))}")
     logger.info(f"   ✓ Clima favorable: {neo4j_result.get('climate_context', {}).get('climate_favorable')}")
 
     # ── 7. Consolidar respuesta final ────────────────────
@@ -183,17 +183,29 @@ async def analyze_crop(
         else:
             recomendaciones = ["Consultar con un agrónomo local para evaluación presencial."]
 
-    # Extraer productos de Neo4j como lista legible
-    productos = []
-    for p in neo4j_result.get("products", []):
+    # Extraer productos quimicos de Neo4j
+    productos_quimicos = []
+    for p in neo4j_result.get("chemical_products", []):
         name = p.get("name", "")
         dosage = p.get("dosage", "")
         if name:
-            productos.append(f"{name} ({dosage})" if dosage else name)
+            productos_quimicos.append(f"{name} ({dosage})" if dosage else name)
 
-    # Si no hay productos de Neo4j, usar los sugeridos por Gemini
-    if not productos:
-        productos = ["Consultar con proveedor local de insumos agrícolas"]
+    # Extraer alternativas naturales de Neo4j
+    alternativas_naturales = []
+    for p in neo4j_result.get("natural_products", []):
+        name = p.get("name", "")
+        dosage = p.get("dosage", "")
+        if name:
+            alternativas_naturales.append(f"{name} ({dosage})" if dosage else name)
+
+    # Si Neo4j no tiene productos, usar los sugeridos por Gemini
+    if not productos_quimicos and not alternativas_naturales:
+        productos_quimicos = gemini_result.get("chemical_products", [])
+        alternativas_naturales = gemini_result.get("natural_alternatives", [])
+
+    if not productos_quimicos and not alternativas_naturales:
+        productos_quimicos = ["Consultar con proveedor local de insumos agrícolas"]
 
     response = {
         # Datos principales para Flutter
@@ -202,7 +214,9 @@ async def analyze_crop(
         "prioridad": _map_severity_to_priority(gemini_result.get("severity_level", "MODERADO")),
         "confianza": gemini_result.get("confidence", 0.0),
         "recomendaciones": recomendaciones,
-        "productos_sugeridos": productos,
+        "productos_quimicos": productos_quimicos,
+        "alternativas_naturales": alternativas_naturales,
+        "productos_sugeridos": productos_quimicos + alternativas_naturales,
 
         # Datos extendidos
         "diagnostico_ia": {
@@ -217,7 +231,8 @@ async def analyze_crop(
         "clima": weather_data,
         "conocimiento_grafo": {
             "treatments": neo4j_result.get("treatments", []),
-            "products": neo4j_result.get("products", []),
+            "natural_products": neo4j_result.get("natural_products", []),
+            "chemical_products": neo4j_result.get("chemical_products", []),
             "climate_favorable": neo4j_result.get("climate_context", {}).get("climate_favorable", False),
             "affected_crops": neo4j_result.get("affected_crops", []),
             "source": neo4j_result.get("source", "no_data"),
@@ -234,7 +249,7 @@ async def analyze_crop(
     logger.info("═══════════════════════════════════════════════════════")
     logger.info("  ✅ ANÁLISIS COMPLETADO EXITOSAMENTE")
     logger.info(f"  Plaga: {pest_name} | Severidad: {response['nivel_gravedad']}")
-    logger.info(f"  Tratamientos: {len(recomendaciones)} | Productos: {len(productos)}")
+    logger.info(f"  Tratamientos: {len(recomendaciones)} | Químicos: {len(productos_quimicos)} | Naturales: {len(alternativas_naturales)}")
     logger.info("═══════════════════════════════════════════════════════")
 
     # --- Simulación de Alerta Fitosanitaria para la Hackathon ---

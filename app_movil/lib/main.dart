@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'firebase_options.dart'; // Este archivo se generará al ejecutar flutterfire configure
+import 'firebase_options.dart';
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
 import 'core/router/app_router.dart';
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -40,7 +39,6 @@ void main() async {
     
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print('Notificación clickeada desde background!');
-      // TODO: Usar el router para navegar si goRouter no acepta global key
     });
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -71,4 +69,3 @@ class AgroGuardianApp extends ConsumerWidget {
     );
   }
 }
-

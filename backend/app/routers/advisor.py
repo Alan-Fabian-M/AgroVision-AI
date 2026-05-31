@@ -12,9 +12,9 @@ router = APIRouter(prefix="/advisor", tags=["Advisor"])
 genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 _model = genai.GenerativeModel(
-    "gemini-2.5-flash",
+    "gemini-flash-latest",
     system_instruction=(
-        "Eres AgroGuardian, un asesor agrónomo experto en cultivos de Bolivia y Latinoamérica. "
+        "Eres AgroVision, un asesor agrónomo experto en cultivos de Bolivia y Latinoamérica. "
         "Ayudas a agricultores con diagnósticos de plagas, enfermedades, recomendaciones de "
         "agroquímicos y buenas prácticas agrícolas. Responde siempre en español, de forma clara "
         "y práctica. Si el agricultor describe síntomas, sugiere posibles causas y soluciones. "

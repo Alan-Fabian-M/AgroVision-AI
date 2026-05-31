@@ -31,7 +31,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
     // Mensaje de bienvenida
     _messages.add(_ChatMessage(
       content:
-          '¡Hola! Soy AgroGuardian, tu asesor agrónomo. '
+          '¡Hola! Soy AgroVision, tu asesor agrónomo. '
           'Puedo ayudarte con diagnósticos de plagas, recomendaciones de '
           'agroquímicos y buenas prácticas para tus cultivos. '
           '¿En qué te puedo ayudar hoy?',
@@ -162,7 +162,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'AgroGuardian Advisor',
+                    'AgroVision Advisor',
                     style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
                   ),
                   Row(
