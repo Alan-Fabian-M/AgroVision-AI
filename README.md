@@ -8,6 +8,12 @@
 
 ---
 
+## 🎬 Demo en Acción
+
+> **¡Mira AgroVision AI funcionando en tiempo real!**
+>
+> [![▶️ Ver Demo en YouTube](https://img.shields.io/badge/▶️_Ver_Demo-YouTube_Shorts-red?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com/shorts/M8iHKLqPVvg?si=C0Z-t7kfxHiCX06B)
+
 ## 📌 Índice
 
 - [1. El Problema Local (Santa Cruz, Bolivia)](#1-el-problema-local-santa-cruz-bolivia)
