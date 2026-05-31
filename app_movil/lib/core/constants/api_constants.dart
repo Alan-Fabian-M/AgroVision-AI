@@ -2,7 +2,7 @@ class ApiConstants {
   // ── Configuración base de la API ──────────────────────
   // Cambia esta IP por la de tu máquina en la red local.
   // Para encontrarla: ejecuta 'ipconfig' en Windows o 'ifconfig' en Mac/Linux.
-  static const String _host = '10.10.34.29';
+  static const String _host = '10.164.62.209';
   static const int _port = 8000;
   static const String baseUrl = 'http://$_host:$_port';
 

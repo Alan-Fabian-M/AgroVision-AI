@@ -43,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _buildHeader(),
                   _buildStats(),
-                  _buildInfo(),
                   _buildActions(context),
                   const SizedBox(height: 32),
                 ],
@@ -157,8 +156,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: AppColors.primary,
           ),
           _divider(),
-          const _StatItem(value: '4', label: 'Cultivos', icon: Icons.grass_outlined, color: AppColors.secondary),
-          _divider(),
           const _StatItem(value: '2', label: 'Alertas', icon: Icons.warning_amber_outlined, color: AppColors.error),
         ],
       ),
@@ -167,67 +164,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _divider() => Container(width: 1, height: 40, color: AppColors.outlineVariant);
 
-  Widget _buildInfo() {
-    final items = [
-      _InfoItem(icon: Icons.agriculture_outlined, label: 'Tipo de cultivo', value: 'Soya, Maíz, Sorgo'),
-      _InfoItem(icon: Icons.area_chart_outlined, label: 'Superficie', value: '15 hectáreas'),
-      _InfoItem(icon: Icons.water_drop_outlined, label: 'Sistema de riego', value: 'Aspersión'),
-      _InfoItem(icon: Icons.calendar_today_outlined, label: 'Miembro desde', value: 'Mayo 2026'),
-    ];
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        children: items.asMap().entries.map((e) {
-          final isLast = e.key == items.length - 1;
-          return Column(children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(children: [
-                Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.surfaceContainerLow,
-                  ),
-                  child: Icon(e.value.icon, color: AppColors.primary, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(e.value.label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant)),
-                  const SizedBox(height: 2),
-                  Text(e.value.value, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
-                ])),
-              ]),
-            ),
-            if (!isLast) Divider(height: 1, color: AppColors.outlineVariant),
-          ]);
-        }).toList(),
-      ),
-    );
-  }
 
   Widget _buildActions(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(children: [
         _ActionBtn(
-          icon: Icons.chat_bubble_outline,
-          label: 'Hablar con Asesor IA',
-          color: AppColors.primary,
-          onTap: () => Navigator.pushNamed(context, '/advisor'),
-        ),
-        const SizedBox(height: 10),
-        _ActionBtn(
           icon: Icons.history_outlined,
           label: 'Ver historial de diagnósticos',
           color: AppColors.secondary,
           onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false),
+        ),
+        const SizedBox(height: 16),
+        _ActionBtn(
+          icon: Icons.smart_toy_outlined,
+          label: 'Hablar con un Asesor IA',
+          color: AppColors.primary,
+          onTap: () => Navigator.pushNamed(context, '/advisor'),
         ),
       ]),
     );
@@ -271,10 +225,7 @@ class _StatItem extends StatelessWidget {
   );
 }
 
-class _InfoItem {
-  final IconData icon; final String label, value;
-  const _InfoItem({required this.icon, required this.label, required this.value});
-}
+
 
 class _ActionBtn extends StatelessWidget {
   final IconData icon; final String label; final Color color; final VoidCallback onTap;

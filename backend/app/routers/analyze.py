@@ -1,83 +1,58 @@
-import os
-import json
-import tempfile
-from fastapi import APIRouter, UploadFile, File, Form, Depends
-from fastapi.responses import JSONResponse
-from typing import List
+import uuid
+from typing import List, Optional
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.services.ia_service import asistente_ia
+
 from app.core.database import get_db
-from app.models.diagnostico import Diagnostico
+from app.dependencies import get_orchestrator
+from app.services.diagnosis_orchestrator import DiagnosisOrchestrator
+from app.schemas.diagnosis import DiagnosisResponse
 
 router = APIRouter(prefix="/diagnostics", tags=["AI Analysis"])
 
-_PRIORIDAD_A_SEVERIDAD = {"URGENTE": 5, "ALTA": 4, "MEDIA": 3, "BAJA": 2}
 
-
-@router.post("/analyze")
+@router.post("/analyze", response_model=DiagnosisResponse, status_code=status.HTTP_201_CREATED)
 async def analyze_crop(
-    descripcion: str = Form(default=""),
-    tipo: str = Form(default="Planta"),
-    user_id: str = Form(default="agricultor"),
-    latitud: float = Form(default=-17.7863),
-    longitud: float = Form(default=-63.1812),
-    clima_temp: float = Form(default=None),
-    clima_humedad: float = Form(default=None),
-    imagenes: List[UploadFile] = File(default=[]),
+    user_id: str = Form(default="00000000-0000-0000-0000-000000000001"),
+    latitude: float = Form(default=-17.7863),
+    longitude: float = Form(default=-63.1812),
+    text_notes: Optional[str] = Form(default=None),
+    images: List[UploadFile] = File(default=[]),
+    audio: Optional[UploadFile] = File(default=None),
     db: Session = Depends(get_db),
+    orchestrator: DiagnosisOrchestrator = Depends(get_orchestrator),
 ):
-    rutas_temporales = []
+    """
+    Endpoint principal de análisis multimodal.
+    Acepta imágenes, audio y notas de texto para diagnosticar plagas/enfermedades.
+    """
     try:
-        for imagen in imagenes:
-            suffix = os.path.splitext(imagen.filename or ".jpg")[1] or ".jpg"
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(await imagen.read())
-                rutas_temporales.append(tmp.name)
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        uid = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
-        resultado = asistente_ia.procesar_solicitud(
-            descripcion=f"[Tipo: {tipo}] {descripcion}".strip(),
-            ruta_audio=None,
-            rutas_imagenes=rutas_temporales if rutas_temporales else None,
+    try:
+        result = await orchestrator.execute(
+            db=db,
+            user_id=uid,
+            latitude=latitude,
+            longitude=longitude,
+            images=images,
+            audio=audio if (audio and audio.filename) else None,
+            text_notes=text_notes,
         )
-
-        # Guardar diagnóstico en la base de datos
-        diagnostico_texto = (
-            f"Plaga: {resultado.get('plaga_detectada', 'N/A')} | "
-            f"Gravedad: {resultado.get('nivel_gravedad', 'N/A')} | "
-            f"{resultado.get('recomendaciones', '')}"
-        )
-        severidad = _PRIORIDAD_A_SEVERIDAD.get(resultado.get("prioridad", "MEDIA"), 3)
-
-        db_diag = Diagnostico(
-            user_id=user_id,
-            latitud=latitud,
-            longitud=longitud,
-            imagen_url=rutas_temporales[0] if rutas_temporales else "sin_imagen",
-            clima_temp=clima_temp,
-            clima_humedad=clima_humedad,
-            severidad_riesgo=severidad,
-            diagnostico_ia=diagnostico_texto,
-        )
-        db.add(db_diag)
-        db.commit()
-        db.refresh(db_diag)
-
-        # Devolver resultado IA + id del registro guardado
-        resultado["diagnostico_id"] = str(db_diag.id)
-        resultado["guardado"] = True
-
-        return JSONResponse(content=resultado)
-
+        
+        # --- Simulación de Alerta Fitosanitaria para la Hackathon ---
+        from app.services.notifications import send_epidemiological_alert
+        # Si el riesgo es 3 o mayor, disparamos la alerta de plaga cercana
+        if result.severidad_riesgo and result.severidad_riesgo >= 3:
+            # Para la demo, extraemos el nombre de la plaga o ponemos uno genérico
+            plaga_detectada = result.diagnostico_ia if result.diagnostico_ia else "una plaga peligrosa"
+            send_epidemiological_alert(pest_name=plaga_detectada, distance_km=5.0)
+            
+        return result
     except Exception as e:
-        db.rollback()
-        # Si falla el guardado, igual devolvemos el resultado de la IA
-        resultado["guardado"] = False
-        resultado["guardado_error"] = str(e)
-        return JSONResponse(content=resultado)
-
-    finally:
-        for ruta in rutas_temporales:
-            try:
-                os.unlink(ruta)
-            except OSError:
-                pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error en el diagnóstico: {str(e)}"
+        )

@@ -43,10 +43,13 @@ app.add_exception_handler(DatabaseException, database_exception_handler)
 app.add_exception_handler(NotFoundException, not_found_exception_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 
+from app.routers.notifications import router as notifications_router
+
 app.include_router(diagnostics_router, prefix=settings.API_V1_PREFIX)
 app.include_router(knowledge_router, prefix=settings.API_V1_PREFIX)
 app.include_router(analyze_router, prefix=settings.API_V1_PREFIX)
 app.include_router(advisor_router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health")

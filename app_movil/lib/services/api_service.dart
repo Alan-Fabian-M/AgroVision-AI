@@ -51,6 +51,21 @@ class ApiService {
       return false;
     }
   }
+
+  // ── Notificaciones ─────────────────────────────────────────────────────────
+
+  static Future<void> registerFcmToken(String token) async {
+    try {
+      await http.post(
+        Uri.parse('$kBackendUrl/api/v1/notifications/register-token'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': '00000000-0000-0000-0000-000000000001',
+          'fcm_token': token,
+        }),
+      ).timeout(_timeout);
+    } catch (_) {}
+  }
 }
 
 // ── Modelos ──────────────────────────────────────────────────────────────────
