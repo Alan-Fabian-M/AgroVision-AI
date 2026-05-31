@@ -1,78 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
-import '../services/api_service.dart';
+import '../widgets/weather_card.dart';
+import '../features/auth/presentation/providers/auth_provider.dart';
+import '../features/auth/domain/entities/user.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
 
-class _HomeScreenState extends State<HomeScreen> {
-  List<DiagnosticoItem> _diagnosticos = [];
-  WeatherData? _weather;
-  bool _loadingDiag = true;
-  bool _backendOnline = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    final results = await Future.wait([
-      ApiService.checkHealth(),
-      ApiService.fetchRecentDiagnostics(limit: 5),
-      ApiService.fetchWeather(),
-    ]);
-
-    if (!mounted) return;
-    setState(() {
-      _backendOnline = results[0] as bool;
-      _diagnosticos = results[1] as List<DiagnosticoItem>;
-      _weather = results[2] as WeatherData?;
-      _loadingDiag = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: RefreshIndicator(
-        color: AppColors.primary,
-        onRefresh: _loadData,
-        child: Stack(
-          children: [
-            CustomScrollView(
-              slivers: [
-                _buildTopBar(),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      _buildDiagnosticButton(context),
-                      const SizedBox(height: 32),
-                      _buildRecentDiagnostics(),
-                    ]),
-                  ),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              _buildTopBar(ref, user),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const WeatherGlassCard(),
+                    const SizedBox(height: 24),
+                    _buildDiagnosticButton(context),
+                    const SizedBox(height: 32),
+                    _buildRecentDiagnostics(),
+                  ]),
                 ),
-              ],
-            ),
-            _buildFAB(context),
-            _buildBottomNav(context),
-          ],
-        ),
+              ),
+            ],
+          ),
+          _buildFAB(context),
+          _buildBottomNav(context),
+        ],
       ),
     );
   }
 
-  SliverAppBar _buildTopBar() {
-    final tempText = _weather?.tempString ?? '-- °C';
-
+  SliverAppBar _buildTopBar(WidgetRef ref, User? user) {
     return SliverAppBar(
       pinned: true,
       backgroundColor: AppColors.surface,
@@ -86,57 +57,92 @@ class _HomeScreenState extends State<HomeScreen> {
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.surfaceContainerHigh,
-                  border: Border.all(color: AppColors.outlineVariant),
+          PopupMenuButton<String>(
+            offset: const Offset(0, 50),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              if (value == 'profile') {
+                // TODO: Implement profile screen
+              } else if (value == 'logout') {
+                ref.read(authProvider.notifier).logout();
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 20),
+                    const SizedBox(width: 12),
+                    Text('Mi Perfil', style: GoogleFonts.inter()),
+                  ],
                 ),
-                child: const Icon(Icons.person, color: AppColors.onSurfaceVariant, size: 22),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Hola, Agricultor',
-                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.onSurface),
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on, size: 13, color: AppColors.onSurfaceVariant),
-                      const SizedBox(width: 2),
-                      Text(
-                        _weather?.ciudad ?? 'Santa Cruz',
-                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ],
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    const Icon(Icons.logout, size: 20, color: Colors.redAccent),
+                    const SizedBox(width: 12),
+                    Text('Cerrar sesión', style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
             ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.outlineVariant),
-            ),
             child: Row(
               children: [
-                const Icon(Icons.wb_sunny_outlined, size: 18, color: AppColors.tertiaryContainer),
-                const SizedBox(width: 6),
-                Text(
-                  tempText,
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.onSurface),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surfaceContainerHigh,
+                    border: Border.all(color: AppColors.outlineVariant),
+                  ),
+                  child: const Icon(Icons.person, color: AppColors.onSurfaceVariant, size: 22),
                 ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user != null ? 'Hola, ${user.nombre.isNotEmpty ? user.nombre : user.email}' : 'Hola, Productor',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Icon(
+                          user?.role == 'ADMIN' ? Icons.admin_panel_settings : Icons.agriculture,
+                          size: 13,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${user?.role ?? 'AGRICULTOR'} | Santa Cruz',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down, color: AppColors.onSurfaceVariant, size: 20),
               ],
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: AppColors.onSurfaceVariant),
+            tooltip: 'Notificaciones',
+            onPressed: () {},
           ),
         ],
       ),
@@ -149,16 +155,21 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 24),
         Center(
           child: GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/capture'),
+            onTap: () => context.push('/capture'),
             child: SizedBox(
               width: 240,
               height: 240,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  // Organic blob shape
                   ClipPath(
                     clipper: _BlobClipper(),
-                    child: Container(width: 240, height: 240, color: AppColors.primary),
+                    child: Container(
+                      width: 240,
+                      height: 240,
+                      color: AppColors.primary,
+                    ),
                   ),
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -168,7 +179,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         'TOCAR PARA\nDIAGNOSTICAR',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white, height: 1.3, letterSpacing: 0.5),
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          height: 1.3,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ],
                   ),
@@ -178,28 +195,42 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 24),
+        // AI Engine status chip
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           decoration: BoxDecoration(
             color: AppColors.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: AppColors.outlineVariant),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 8, height: 8,
+                width: 20,
+                height: 20,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _backendOnline ? const Color(0xFF22C55E) : AppColors.error,
+                  color: AppColors.primary.withValues(alpha: 0.15),
                 ),
+                child: const Icon(Icons.sensors, size: 12, color: AppColors.primary),
               ),
               const SizedBox(width: 8),
               Text(
-                _backendOnline ? 'AI-Engine: Ready' : 'AI-Engine: Offline',
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant, fontStyle: FontStyle.italic),
+                'AI-Engine: Ready',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),
@@ -209,6 +240,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentDiagnostics() {
+    final diagnostics = [
+      _DiagnosticItem(
+        title: 'Lote 4B - Maíz',
+        subtitle: 'Posible deficiencia de Nitrógeno',
+        time: 'Hace 2h',
+        tag: 'Revisión req.',
+        tagColor: AppColors.secondaryContainer,
+        tagTextColor: AppColors.onSecondaryContainer,
+      ),
+      _DiagnosticItem(
+        title: 'Lote 2A - Soja',
+        subtitle: 'Crecimiento óptimo',
+        time: 'Ayer',
+        tag: 'Saludable',
+        tagColor: AppColors.primaryContainer,
+        tagTextColor: AppColors.onPrimaryContainer,
+      ),
+    ];
+
     return Column(
       children: [
         Row(
@@ -217,58 +267,33 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text(
               'Diagnósticos Recientes',
-              style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: AppColors.onBackground,
+              ),
             ),
             TextButton(
-              onPressed: _loadData,
-              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-              child: Text('Actualizar', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary)),
+              onPressed: () {},
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Ver todos',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        if (_loadingDiag)
-          _buildLoadingSkeleton()
-        else if (_diagnosticos.isEmpty)
-          _buildEmptyState()
-        else
-          ..._diagnosticos.map((d) => _DiagnosticCard(item: d)),
+        ...diagnostics.map((d) => _DiagnosticCard(item: d)),
       ],
-    );
-  }
-
-  Widget _buildLoadingSkeleton() {
-    return Column(
-      children: List.generate(2, (_) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        height: 88,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-        ),
-      )),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        children: [
-          Icon(Icons.grass_outlined, size: 48, color: AppColors.onSurfaceVariant.withValues(alpha: 0.5)),
-          const SizedBox(height: 12),
-          Text(
-            'Aún no hay diagnósticos',
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Toca el botón para analizar tu primer cultivo',
-            style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
     );
   }
 
@@ -277,21 +302,35 @@ class _HomeScreenState extends State<HomeScreen> {
       bottom: 88,
       right: 16,
       child: GestureDetector(
-        onTap: () => Navigator.pushNamed(context, '/capture'),
+        onTap: () => context.push('/capture'),
         child: Container(
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(999),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.photo_camera, color: Colors.white, size: 22),
               const SizedBox(width: 8),
-              Text('NUEVA CAPTURA', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: 0.8)),
+              Text(
+                'NUEVA CAPTURA',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
+              ),
             ],
           ),
         ),
@@ -301,17 +340,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBottomNav(BuildContext context) {
     return Positioned(
-      bottom: 0, left: 0, right: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
       child: Container(
         height: 72,
-        decoration: BoxDecoration(color: AppColors.surface, border: Border(top: BorderSide(color: AppColors.outlineVariant))),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.outlineVariant)),
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _NavItem(icon: Icons.home, label: 'Home', active: true, onTap: () {}),
-            _NavItem(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => Navigator.pushNamed(context, '/capture')),
-            _NavItem(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () => Navigator.pushNamed(context, '/field')),
-            _NavItem(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => Navigator.pushNamed(context, '/profile')),
+            _NavItem(icon: Icons.photo_camera_outlined, label: 'Capture', active: false, onTap: () => context.push('/capture')),
+            _NavItem(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () => context.push('/field')),
+            _NavItem(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),
           ],
         ),
       ),
@@ -319,23 +363,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Tarjeta de diagnóstico ───────────────────────────────────────────────────
+class _DiagnosticItem {
+  final String title, subtitle, time, tag;
+  final Color tagColor, tagTextColor;
+  const _DiagnosticItem({
+    required this.title,
+    required this.subtitle,
+    required this.time,
+    required this.tag,
+    required this.tagColor,
+    required this.tagTextColor,
+  });
+}
 
 class _DiagnosticCard extends StatelessWidget {
-  final DiagnosticoItem item;
+  final _DiagnosticItem item;
   const _DiagnosticCard({required this.item});
-
-  Color get _tagColor {
-    if (item.severidadRiesgo >= 4) return AppColors.error;
-    if (item.severidadRiesgo >= 3) return AppColors.secondaryContainer;
-    return AppColors.primaryContainer;
-  }
-
-  Color get _tagTextColor {
-    if (item.severidadRiesgo >= 4) return Colors.white;
-    if (item.severidadRiesgo >= 3) return AppColors.onSecondaryContainer;
-    return AppColors.onPrimaryContainer;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -350,8 +393,13 @@ class _DiagnosticCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.surfaceDim, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.outlineVariant)),
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceDim,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.outlineVariant),
+            ),
             child: const Icon(Icons.grass, color: AppColors.onSurfaceVariant, size: 28),
           ),
           const SizedBox(width: 12),
@@ -360,15 +408,22 @@ class _DiagnosticCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Usuario: ${item.userId}',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.onSurface),
+                  item.title,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onBackground,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  item.diagnosticoIa,
-                  style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
+                  item.subtitle,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
                 ),
               ],
             ),
@@ -377,12 +432,30 @@ class _DiagnosticCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(item.tiempoRelativo, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant)),
+              Text(
+                item.time,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: _tagColor, borderRadius: BorderRadius.circular(999)),
-                child: Text(item.tagLabel, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: _tagTextColor)),
+                decoration: BoxDecoration(
+                  color: item.tagColor,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: item.tagColor),
+                ),
+                child: Text(
+                  item.tag,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: item.tagTextColor,
+                  ),
+                ),
               ),
             ],
           ),
@@ -391,8 +464,6 @@ class _DiagnosticCard extends StatelessWidget {
     );
   }
 }
-
-// ── Nav Item ─────────────────────────────────────────────────────────────────
 
 class _NavItem extends StatelessWidget {
   final IconData icon;
@@ -406,25 +477,46 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: active
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(color: AppColors.primaryContainer, borderRadius: BorderRadius.circular(999)),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primaryContainer,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Icon(icon, color: AppColors.onPrimaryContainer, size: 22),
                 const SizedBox(height: 2),
-                Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.onPrimaryContainer)),
-              ]),
-            )
-          : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.onPrimaryContainer,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
               Icon(icon, color: AppColors.onSurfaceVariant, size: 22),
               const SizedBox(height: 2),
-              Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant)),
-            ]),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
     );
   }
 }
-
-// ── Blob Clipper ─────────────────────────────────────────────────────────────
 
 class _BlobClipper extends CustomClipper<Path> {
   @override

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 
 const String _backendUrl = 'http://10.164.62.209:8000';
@@ -547,7 +548,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _NavBtn(icon: Icons.home_outlined, label: 'Home', active: false,
-              onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false)),
+              onTap: () => context.go('/')),
           _NavBtn(icon: Icons.photo_camera, label: 'Capture', active: true, onTap: () {}),
           _NavBtn(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () {}),
           _NavBtn(icon: Icons.person_outline, label: 'Perfil', active: false, onTap: () => Navigator.pushNamed(context, '/profile')),

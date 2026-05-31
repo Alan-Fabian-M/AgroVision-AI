@@ -1,45 +1,106 @@
 import 'dart:io';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
+import '../core/providers/location_provider.dart';
 
-class PreviewScreen extends StatefulWidget {
-  final String imagePath;
+class PreviewScreen extends ConsumerStatefulWidget {
+  final List<String> imagePaths;
   final String tipo;
 
   const PreviewScreen({
     super.key,
-    required this.imagePath,
+    required this.imagePaths,
     required this.tipo,
   });
 
   @override
-  State<PreviewScreen> createState() => _PreviewScreenState();
+  ConsumerState<PreviewScreen> createState() => _PreviewScreenState();
 }
 
-class _PreviewScreenState extends State<PreviewScreen> {
+class _PreviewScreenState extends ConsumerState<PreviewScreen> {
   late List<String> _imagePaths;
   int _selectedIndex = 0;
   final TextEditingController _notesController = TextEditingController();
-  bool _isRecording = false;
-  bool _hasText = false;
   final _picker = ImagePicker();
+
+  // Audio state
+  final _audioRecorder = AudioRecorder();
+  final _audioPlayer = AudioPlayer();
+  String? _audioPath;
+  bool _isRecording = false;
+  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
-    _imagePaths = [widget.imagePath];
-    _notesController.addListener(() {
-      final hasText = _notesController.text.trim().isNotEmpty;
-      if (hasText != _hasText) setState(() => _hasText = hasText);
+    _imagePaths = List.from(widget.imagePaths);
+    _audioPlayer.onPlayerStateChanged.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = state == PlayerState.playing;
+        });
+      }
     });
   }
 
   @override
   void dispose() {
     _notesController.dispose();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final directory = await getApplicationDocumentsDirectory();
+        final path = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        await _audioRecorder.start(const RecordConfig(), path: path);
+        setState(() {
+          _isRecording = true;
+          _audioPath = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error starting record: $e');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      final path = await _audioRecorder.stop();
+      setState(() {
+        _isRecording = false;
+        _audioPath = path;
+      });
+    } catch (e) {
+      debugPrint('Error stopping record: $e');
+    }
+  }
+
+  void _deleteAudio() {
+    setState(() {
+      _audioPath = null;
+      _isPlaying = false;
+      _audioPlayer.stop();
+    });
+  }
+
+  Future<void> _toggleAudioPlay() async {
+    if (_audioPath == null) return;
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+    } else {
+      await _audioPlayer.play(DeviceFileSource(_audioPath!));
+    }
   }
 
   Future<void> _addImage() async {
@@ -63,13 +124,13 @@ class _PreviewScreenState extends State<PreviewScreen> {
   }
 
   void _analyzeNow() {
-    Navigator.pushNamed(
-      context,
+    context.push(
       '/analysis-result',
-      arguments: {
+      extra: {
         'imagePaths': _imagePaths,
         'tipo': widget.tipo,
         'descripcion': _notesController.text,
+        'audioPath': _audioPath,
       },
     );
   }
@@ -154,31 +215,42 @@ class _PreviewScreenState extends State<PreviewScreen> {
           Positioned(
             top: 16,
             right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppColors.outlineVariant),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.location_on, size: 14, color: AppColors.secondary),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Sector Norte, Parcela 4',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.onSurface,
-                    ),
+            child: Consumer(
+              builder: (context, ref, child) {
+                final locationAsync = ref.watch(locationProvider);
+                final locationText = locationAsync.when(
+                  data: (pos) => pos != null ? '${pos.latitude.toStringAsFixed(3)}, ${pos.longitude.toStringAsFixed(3)}' : 'GPS no disponible',
+                  loading: () => 'Obteniendo GPS...',
+                  error: (_, __) => 'Error GPS',
+                );
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppColors.outlineVariant),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4),
+                    ],
                   ),
-                ],
-              ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.location_on, size: 14, color: AppColors.secondary),
+                      const SizedBox(width: 4),
+                      Text(
+                        locationText,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
             ),
           ),
           // Chip de tipo seleccionado
@@ -232,64 +304,62 @@ class _PreviewScreenState extends State<PreviewScreen> {
                   final i = entry.key;
                   final path = entry.value;
                   final active = i == _selectedIndex;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedIndex = i),
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      margin: const EdgeInsets.only(right: 10),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: active ? AppColors.primary : AppColors.outlineVariant,
-                          width: active ? 2.5 : 1,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(7),
-                        child: Image.file(
-                          File(path),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: AppColors.surfaceContainerLow,
-                            child: const Icon(Icons.image, size: 24, color: AppColors.onSurfaceVariant),
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedIndex = i),
+                        child: Container(
+                          width: 72,
+                          height: 72,
+                          margin: const EdgeInsets.only(right: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: active ? AppColors.primary : AppColors.outlineVariant,
+                              width: active ? 2.5 : 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(7),
+                            child: Image.file(
+                              File(path),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: AppColors.surfaceContainerLow,
+                                child: const Icon(Icons.image, size: 24, color: AppColors.onSurfaceVariant),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      Positioned(
+                        top: -6,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _imagePaths.removeAt(i);
+                              if (_imagePaths.isEmpty) {
+                                Navigator.pop(context);
+                              } else if (_selectedIndex >= _imagePaths.length) {
+                                _selectedIndex = _imagePaths.length - 1;
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, size: 14, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
                   );
                 }),
-                // Botón añadir
-                GestureDetector(
-                  onTap: _addImage,
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: AppColors.outlineVariant,
-                        style: BorderStyle.solid,
-                      ),
-                      color: AppColors.surfaceContainerLow,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.add_a_photo, color: AppColors.primary, size: 22),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Añadir',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -310,6 +380,35 @@ class _PreviewScreenState extends State<PreviewScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_audioPath != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: AppColors.onPrimaryContainer),
+                      onPressed: _toggleAudioPlay,
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Nota de voz',
+                        style: GoogleFonts.inter(color: AppColors.onPrimaryContainer, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: _deleteAudio,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // Input multimodal estilo WhatsApp
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
@@ -337,56 +436,42 @@ class _PreviewScreenState extends State<PreviewScreen> {
                       maxLines: null,
                       style: GoogleFonts.inter(fontSize: 15, color: AppColors.onSurface),
                       decoration: InputDecoration(
-                        hintText: 'Añade detalles o dudas...',
+                        hintText: _isRecording ? 'Grabando audio...' : 'Añade detalles o dudas...',
                         hintStyle: GoogleFonts.inter(
                           fontSize: 15,
-                          color: AppColors.onSurfaceVariant,
+                          color: _isRecording ? AppColors.primary : AppColors.onSurfaceVariant,
                         ),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
-                  // Mic / Enviar
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                    child: _hasText
-                        // Botón ENVIAR cuando hay texto
-                        ? GestureDetector(
-                            key: const ValueKey('send'),
-                            onTap: _analyzeNow,
-                            child: Container(
-                              width: 40, height: 40,
-                              margin: const EdgeInsets.only(right: 4, bottom: 4),
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.primary,
-                              ),
-                              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                            ),
-                          )
-                        // Botón MIC cuando está vacío
-                        : GestureDetector(
-                            key: const ValueKey('mic'),
-                            onTapDown: (_) => setState(() => _isRecording = true),
-                            onTapUp: (_) => setState(() => _isRecording = false),
-                            onTapCancel: () => setState(() => _isRecording = false),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              width: 40, height: 40,
-                              margin: const EdgeInsets.only(right: 4, bottom: 4),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _isRecording ? AppColors.primary : Colors.transparent,
-                              ),
-                              child: Icon(
-                                _isRecording ? Icons.mic : Icons.mic_none,
-                                color: _isRecording ? Colors.white : AppColors.onSurfaceVariant,
-                                size: 22,
-                              ),
-                            ),
-                          ),
+                  // Mic
+                  GestureDetector(
+                    onTap: () {
+                      if (_isRecording) {
+                        _stopRecording();
+                      } else {
+                        _startRecording();
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 40,
+                      height: 40,
+                      margin: const EdgeInsets.only(right: 4, bottom: 4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _isRecording
+                            ? AppColors.error // Rojo para indicar grabando
+                            : Colors.transparent,
+                      ),
+                      child: Icon(
+                        _isRecording ? Icons.stop : Icons.mic_none,
+                        color: _isRecording ? Colors.white : AppColors.onSurfaceVariant,
+                        size: 22,
+                      ),
+                    ),
                   ),
                 ],
               ),

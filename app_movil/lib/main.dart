@@ -5,15 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart'; // Este archivo se generará al ejecutar flutterfire configure
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
-import 'screens/home_screen.dart';
-import 'screens/capture_screen.dart';
-import 'screens/preview_screen.dart';
-import 'screens/analysis_result_screen.dart';
-import 'screens/field_map_screen.dart';
-import 'screens/advisor_screen.dart';
-import 'screens/profile_screen.dart';
-import 'screens/insumo_screen.dart';
-
+import 'core/router/app_router.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
@@ -48,7 +40,7 @@ void main() async {
     
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print('Notificación clickeada desde background!');
-      navigatorKey.currentState?.pushNamed('/capture');
+      // TODO: Usar el router para navegar si goRouter no acepta global key
     });
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -58,65 +50,25 @@ void main() async {
       }
     });
   } catch (e) {
-    print("Advertencia: Firebase no pudo inicializarse. Asegúrate de ejecutar 'flutterfire configure'. Error: $e");
+    print("Advertencia: Firebase no pudo inicializarse. Error: $e");
   }
 
   runApp(const ProviderScope(child: AgroGuardianApp()));
 }
 
-class AgroGuardianApp extends StatelessWidget {
+class AgroGuardianApp extends ConsumerWidget {
   const AgroGuardianApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final goRouter = ref.watch(appRouterProvider);
+
+    return MaterialApp.router(
       title: 'AgroVision AI',
-      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      initialRoute: '/',
-      routes: {
-        '/': (_) => const HomeScreen(),
-        '/capture': (_) => const CaptureScreen(),
-        '/advisor': (_) => const AdvisorScreen(),
-        '/profile': (_) => const ProfileScreen(),
-        '/field': (ctx) {
-          final args = ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
-          return FieldMapScreen(
-            nuevaPlaga: args?['plaga'] as String?,
-            nuevaPrioridad: args?['prioridad'] as String?,
-          );
-        },
-        '/insumos': (ctx) {
-          final args = ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
-          return InsumoScreen(
-            plaga: args['plaga'] as String,
-            productosSugeridos: List<String>.from(args['productos'] as List? ?? []),
-          );
-        },
-      },
-      onGenerateRoute: (settings) {
-        if (settings.name == '/preview') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (_) => PreviewScreen(
-              imagePath: args['imagePath'] as String,
-              tipo: args['tipo'] as String,
-            ),
-          );
-        }
-        if (settings.name == '/analysis-result') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (_) => AnalysisResultScreen(
-              imagePaths: List<String>.from(args['imagePaths'] as List),
-              tipo: args['tipo'] as String,
-              descripcion: args['descripcion'] as String? ?? '',
-            ),
-          );
-        }
-        return null;
-      },
+      routerConfig: goRouter,
     );
   }
 }
+
