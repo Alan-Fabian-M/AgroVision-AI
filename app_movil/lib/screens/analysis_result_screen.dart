@@ -1,29 +1,31 @@
-import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
+import '../core/providers/location_provider.dart';
+import '../core/constants/api_constants.dart';
 
-const String _backendUrl = 'http://10.164.62.209:8000';
-
-class AnalysisResultScreen extends StatefulWidget {
+class AnalysisResultScreen extends ConsumerStatefulWidget {
   final List<String> imagePaths;
   final String tipo;
   final String descripcion;
+  final String? audioPath;
 
   const AnalysisResultScreen({
     super.key,
     required this.imagePaths,
     required this.tipo,
     required this.descripcion,
+    this.audioPath,
   });
 
   @override
-  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+  ConsumerState<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
 }
 
-class _AnalysisResultScreenState extends State<AnalysisResultScreen>
+class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
     with SingleTickerProviderStateMixin {
   _AnalysisState _state = _AnalysisState.loading;
   _DiagnosisResult? _result;
@@ -47,26 +49,54 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen>
 
   Future<void> _runAnalysis() async {
     try {
-      final uri = Uri.parse('$_backendUrl/api/v1/diagnostics/analyze');
-      final request = http.MultipartRequest('POST', uri);
+      final dio = Dio();
+      final locationAsync = ref.read(locationProvider);
+      double lat = 0.0;
+      double lon = 0.0;
+      
+      if (locationAsync.hasValue && locationAsync.value != null) {
+        lat = locationAsync.value!.latitude;
+        lon = locationAsync.value!.longitude;
+      }
 
-      request.fields['descripcion'] = widget.descripcion;
-      request.fields['tipo'] = widget.tipo;
-
+      List<MultipartFile> imageFiles = [];
       for (final path in widget.imagePaths) {
         final file = File(path);
         if (await file.exists()) {
-          request.files.add(await http.MultipartFile.fromPath('imagenes', path));
+          imageFiles.add(await MultipartFile.fromFile(path, filename: path.split('/').last));
         }
       }
 
-      final streamed = await request.send().timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamed);
+      Map<String, dynamic> formDataMap = {
+        'descripcion': widget.descripcion,
+        'tipo': widget.tipo,
+        'latitud': lat,
+        'longitud': lon,
+        'user_id': 'usuario_123',
+        'imagenes': imageFiles,
+      };
+
+      if (widget.audioPath != null) {
+        final audioFile = File(widget.audioPath!);
+        if (await audioFile.exists()) {
+          formDataMap['audio'] = await MultipartFile.fromFile(widget.audioPath!, filename: widget.audioPath!.split('/').last);
+        }
+      }
+
+      final formData = FormData.fromMap(formDataMap);
+
+      final response = await dio.post(
+        ApiConstants.analyzeDiagnostic,
+        data: formData,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30),
+        ),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
         setState(() {
-          _result = _DiagnosisResult.fromJson(data);
+          _result = _DiagnosisResult.fromJson(response.data);
           _state = _AnalysisState.done;
         });
       } else {

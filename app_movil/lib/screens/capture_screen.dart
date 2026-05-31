@@ -1,22 +1,28 @@
-import 'dart:io';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
+import '../core/providers/location_provider.dart';
 
-class CaptureScreen extends StatefulWidget {
+class CaptureScreen extends ConsumerStatefulWidget {
   const CaptureScreen({super.key});
 
   @override
-  State<CaptureScreen> createState() => _CaptureScreenState();
+  ConsumerState<CaptureScreen> createState() => _CaptureScreenState();
 }
 
-class _CaptureScreenState extends State<CaptureScreen>
+class _CaptureScreenState extends ConsumerState<CaptureScreen>
     with SingleTickerProviderStateMixin {
   int _selectedTab = 0;
   final _tabs = ['Planta', 'Insecto', 'Suelo'];
   late AnimationController _scanController;
   late Animation<double> _scanAnimation;
+
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  bool _isCameraInitialized = false;
 
   @override
   void initState() {
@@ -28,36 +34,72 @@ class _CaptureScreenState extends State<CaptureScreen>
     _scanAnimation = Tween<double>(begin: 0.1, end: 0.9).animate(
       CurvedAnimation(parent: _scanController, curve: Curves.easeInOut),
     );
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras != null && _cameras!.isNotEmpty) {
+        _cameraController = CameraController(
+          _cameras![0],
+          ResolutionPreset.high,
+          enableAudio: false,
+        );
+        await _cameraController!.initialize();
+        if (mounted) {
+          setState(() {
+            _isCameraInitialized = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error initializing camera: $e');
+    }
   }
 
   @override
   void dispose() {
     _scanController.dispose();
+    _cameraController?.dispose();
     super.dispose();
   }
 
   Future<void> _pickFromGallery() async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
-    if (file != null && mounted) {
-      _navigateToAnalysis(file.path);
+    final files = await picker.pickMultiImage(imageQuality: 80);
+    if (files.isNotEmpty && mounted) {
+      _navigateToAnalysis(files.map((e) => e.path).toList());
     }
   }
 
   Future<void> _takePhoto() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.camera);
-    if (file != null && mounted) {
-      _navigateToAnalysis(file.path);
+    if (!_isCameraInitialized || _cameraController == null) {
+      // Fallback
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      if (file != null && mounted) {
+        _navigateToAnalysis([file.path]);
+      }
+      return;
+    }
+
+    try {
+      final xFile = await _cameraController!.takePicture();
+      if (mounted) {
+        _navigateToAnalysis([xFile.path]);
+      }
+    } catch (e) {
+      debugPrint('Error taking picture: $e');
     }
   }
 
-  void _navigateToAnalysis(String imagePath) {
+  void _navigateToAnalysis(List<String> imagePaths) {
     Navigator.pushNamed(
       context,
       '/preview',
       arguments: {
-        'imagePath': imagePath,
+        'imagePaths': imagePaths,
         'tipo': _tabs[_selectedTab],
       },
     );
@@ -86,6 +128,19 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Widget _buildCameraBackground() {
+    if (_isCameraInitialized && _cameraController != null) {
+      return SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: _cameraController!.value.previewSize?.height ?? 1,
+            height: _cameraController!.value.previewSize?.width ?? 1,
+            child: CameraPreview(_cameraController!),
+          ),
+        ),
+      );
+    }
+    
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -127,27 +182,45 @@ class _CaptureScreenState extends State<CaptureScreen>
             // GPS + Flash
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.my_location, size: 16, color: AppColors.onPrimaryContainer),
-                      const SizedBox(width: 6),
-                      Text(
-                        'GPS Activo',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final locationAsyncValue = ref.watch(locationProvider);
+                    
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            locationAsyncValue.hasValue && locationAsyncValue.value != null 
+                                ? Icons.my_location 
+                                : Icons.location_disabled, 
+                            size: 16, 
+                            color: AppColors.onPrimaryContainer,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            locationAsyncValue.when(
+                              data: (position) => position != null 
+                                  ? '${position.latitude.toStringAsFixed(2)}, ${position.longitude.toStringAsFixed(2)}' 
+                                  : 'GPS Error',
+                              loading: () => 'Buscando...',
+                              error: (_, __) => 'GPS Error',
+                            ),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                 ),
                 const SizedBox(width: 8),
                 _glassButton(
