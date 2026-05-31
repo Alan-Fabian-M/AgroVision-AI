@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../core/providers/location_provider.dart';
 
@@ -123,10 +124,9 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
   }
 
   void _analyzeNow() {
-    Navigator.pushNamed(
-      context,
+    context.push(
       '/analysis-result',
-      arguments: {
+      extra: {
         'imagePaths': _imagePaths,
         'tipo': widget.tipo,
         'descripcion': _notesController.text,
