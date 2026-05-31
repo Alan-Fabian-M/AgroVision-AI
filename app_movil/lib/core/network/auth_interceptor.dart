@@ -13,14 +13,12 @@ class AuthInterceptor extends Interceptor {
   ) async {
     // Leer el token almacenado
     final token = await _secureStorage.read(key: 'access_token');
-
     // Si existe el token y la ruta no es de login/registro, inyectarlo
     if (token != null &&
         !options.path.contains('/auth/login') &&
         !options.path.contains('/auth/register')) {
       options.headers['Authorization'] = 'Bearer $token';
-    }
-
+    } 
     return handler.next(options);
   }
 }

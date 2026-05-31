@@ -1,5 +1,6 @@
 import os
 import logging
+from app.core.config import get_settings
 import httpx
 from fastapi import HTTPException, status
 
@@ -7,7 +8,8 @@ logger = logging.getLogger(__name__)
 
 class WeatherService:
     def __init__(self):
-        self.api_key = os.getenv("OPENWEATHER_API_KEY")
+        settings = get_settings()
+        self.api_key = settings.OPENWEATHER_API_KEY
         self.base_url = "https://api.openweathermap.org/data/2.5/weather"
 
     async def get_weather(self, lat: float, lon: float) -> dict:

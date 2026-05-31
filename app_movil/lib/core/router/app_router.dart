@@ -88,7 +88,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final args = state.extra as Map<String, dynamic>;
           return PreviewScreen(
             imagePaths: args['imagePaths'] as List<String>,
-            tipo: args['tipo'] as String,
           );
         },
       ),
@@ -98,7 +97,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final args = state.extra as Map<String, dynamic>;
           return AnalysisResultScreen(
             imagePaths: List<String>.from(args['imagePaths'] as List),
-            tipo: args['tipo'] as String,
             descripcion: args['descripcion'] as String? ?? '',
             audioPath: args['audioPath'] as String?,
           );

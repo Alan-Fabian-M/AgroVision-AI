@@ -4,20 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../theme/app_theme.dart';
 import '../core/providers/location_provider.dart';
 import '../core/constants/api_constants.dart';
+import '../features/auth/presentation/providers/auth_provider.dart';
 
 class AnalysisResultScreen extends ConsumerStatefulWidget {
   final List<String> imagePaths;
-  final String tipo;
   final String descripcion;
   final String? audioPath;
 
   const AnalysisResultScreen({
     super.key,
     required this.imagePaths,
-    required this.tipo,
     required this.descripcion,
     this.audioPath,
   });
@@ -50,7 +50,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
 
   Future<void> _runAnalysis() async {
     try {
-      final dio = Dio();
+      final dio = ref.read(dioProvider);
       final locationAsync = ref.read(locationProvider);
       double lat = 0.0;
       double lon = 0.0;
@@ -89,14 +89,19 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
 
       final formData = FormData.fromMap(formDataMap);
 
+      final secureStorage = const FlutterSecureStorage();
+      final token = await secureStorage.read(key: 'access_token');
+
       debugPrint('📡 Enviando análisis a: ${ApiConstants.analyzeDiagnostic}');
-      debugPrint('📍 GPS: lat=$lat, lon=$lon');
-      debugPrint('📸 Imágenes: ${imageFiles.length}');
+      debugPrint('🔑 Token disponible: ${token != null}');
 
       final response = await dio.post(
         ApiConstants.analyzeDiagnostic,
         data: formData,
         options: Options(
+          headers: {
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
           receiveTimeout: const Duration(seconds: 60),
           sendTimeout: const Duration(seconds: 60),
         ),
@@ -186,7 +191,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
             ),
             const SizedBox(width: 10),
             Text(
-              'AgroGuardian AI',
+              'AgroVision AI',
               style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -270,12 +275,96 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
           _buildCropImage(),
           const SizedBox(height: 16),
 
+          if (r.clima != null) ...[
+            _buildWeatherCard(r.clima!),
+            const SizedBox(height: 16),
+          ],
+
           // Tarjeta de problema
           _buildProblemCard(r, riskColor, riskLabel),
           const SizedBox(height: 16),
 
           // Tarjeta de solución
           _buildSolutionCard(r),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeatherCard(Map<String, dynamic> clima) {
+    final temp = clima['temperature']?.toString() ?? '--';
+    final humidity = clima['humidity']?.toString() ?? '--';
+    final condition = clima['condition']?.toString() ?? 'Desconocido';
+    final iconCode = clima['icon']?.toString() ?? '01d';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Image.network(
+            'https://openweathermap.org/img/wn/$iconCode@2x.png',
+            width: 60,
+            height: 60,
+            errorBuilder: (_, __, ___) => const Icon(Icons.cloud, size: 40, color: AppColors.onSurfaceVariant),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Clima al Momento del Análisis',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  condition,
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.thermostat, size: 16, color: AppColors.error),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$temp°C',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Icon(Icons.air, size: 16, color: AppColors.secondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Humedad: $humidity%',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -420,13 +509,16 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
                     const Icon(Icons.check_circle, color: AppColors.primary, size: 22),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        rec,
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.onSurface,
-                          height: 1.4,
+                      child: RichText(
+                        text: TextSpan(
+                          children: _parseMarkdownBold(
+                            rec,
+                            GoogleFonts.inter(
+                              fontSize: 15,
+                              color: AppColors.onSurfaceVariant,
+                              height: 1.5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -489,24 +581,6 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
             ),
           ),
           const SizedBox(height: 12),
-          // Botón Hablar con Asesor
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.chat_bubble_outline, size: 20),
-              label: Text(
-                'Hablar con Asesor',
-                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.onSurface,
-                side: const BorderSide(color: AppColors.outlineVariant, width: 2),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -540,6 +614,24 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
       default:        return 'Riesgo Bajo';
     }
   }
+
+  // --- Utilidad para Negritas ---
+  List<TextSpan> _parseMarkdownBold(String text, TextStyle defaultStyle) {
+    final parts = text.split('**');
+    final spans = <TextSpan>[];
+    for (int i = 0; i < parts.length; i++) {
+      if (parts[i].isEmpty) continue;
+      spans.add(
+        TextSpan(
+          text: parts[i],
+          style: i % 2 == 1 
+            ? defaultStyle.copyWith(fontWeight: FontWeight.w800, color: AppColors.onSurface) 
+            : defaultStyle,
+        ),
+      );
+    }
+    return spans;
+  }
 }
 
 enum _AnalysisState { loading, done }
@@ -551,6 +643,7 @@ class _DiagnosisResult {
   final List<String> recomendaciones;
   final List<String> productosSugeridos;
   final double confianza;
+  final Map<String, dynamic>? clima;
 
   const _DiagnosisResult({
     required this.plagaDetectada,
@@ -559,19 +652,34 @@ class _DiagnosisResult {
     required this.recomendaciones,
     required this.productosSugeridos,
     required this.confianza,
+    this.clima,
   });
 
   factory _DiagnosisResult.fromJson(Map<String, dynamic> json) {
-    // Parsea recomendaciones (puede venir como String o List)
     List<String> parseRecs(dynamic raw) {
       if (raw is List) return raw.map((e) => e.toString()).toList();
-      if (raw is String) return raw.split('.').where((s) => s.trim().isNotEmpty).map((s) => '${s.trim()}.').toList();
+      if (raw is String) {
+        // Si tiene saltos de línea (típico de Gemini), dividimos por ahí
+        if (raw.contains('\n')) {
+          return raw.split('\n')
+              // Eliminar solo las viñetas del INICIO de la línea (*, -, 1.), pero mantener los ** de negrita
+              .map((s) => s.replaceAll(RegExp(r'^[-*]\s*|^\d+\.\s*'), '').trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+        }
+        // Fallback: si es un párrafo largo, lo separamos por oraciones ('. ')
+        return raw.split('. ')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .map((s) => s.endsWith('.') ? s : '$s.')
+            .toList();
+      }
       return [];
     }
 
     List<String> parseProducts(dynamic raw) {
-      if (raw is List) return raw.map((e) => e.toString()).toList();
-      if (raw is String) return raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      if (raw is List) return raw.map((e) => e.toString().replaceAll('*', '')).toList();
+      if (raw is String) return raw.split(',').map((s) => s.replaceAll('*', '').trim()).where((s) => s.isNotEmpty).toList();
       return [];
     }
 
@@ -582,6 +690,7 @@ class _DiagnosisResult {
       recomendaciones: parseRecs(json['recomendaciones']),
       productosSugeridos: parseProducts(json['productos_sugeridos']),
       confianza: (json['confianza'] as num?)?.toDouble() ?? 0.0,
+      clima: json['clima'] as Map<String, dynamic>?,
     );
   }
 }

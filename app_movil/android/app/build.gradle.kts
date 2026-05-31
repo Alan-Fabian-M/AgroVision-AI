@@ -17,7 +17,7 @@ if (localPropertiesFile.exists()) {
 
 android {
     namespace = "com.example.app_movil"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
