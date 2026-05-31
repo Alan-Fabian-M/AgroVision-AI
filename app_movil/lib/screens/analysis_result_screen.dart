@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../core/providers/location_provider.dart';
 import '../core/constants/api_constants.dart';
@@ -522,7 +523,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen>
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _NavBtn(icon: Icons.home_outlined, label: 'Home', active: false,
-              onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false)),
+              onTap: () => context.go('/')),
           _NavBtn(icon: Icons.photo_camera, label: 'Capture', active: true, onTap: () {}),
           _NavBtn(icon: Icons.map_outlined, label: 'Field', active: false, onTap: () {}),
           _NavBtn(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),

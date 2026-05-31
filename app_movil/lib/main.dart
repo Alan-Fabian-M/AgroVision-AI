@@ -1,54 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
-import 'screens/home_screen.dart';
-import 'screens/capture_screen.dart';
-import 'screens/preview_screen.dart';
-import 'screens/analysis_result_screen.dart';
-import 'screens/field_map_screen.dart';
+import 'core/router/app_router.dart';
 
 void main() {
   runApp(const ProviderScope(child: AgroGuardianApp()));
 }
 
-class AgroGuardianApp extends StatelessWidget {
+class AgroGuardianApp extends ConsumerWidget {
   const AgroGuardianApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final goRouter = ref.watch(appRouterProvider);
+
+    return MaterialApp.router(
       title: 'AgroVision AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      initialRoute: '/',
-      routes: {
-        '/': (_) => const HomeScreen(),
-        '/capture': (_) => const CaptureScreen(),
-        '/field': (_) => const FieldMapScreen(),
-      },
-      onGenerateRoute: (settings) {
-        if (settings.name == '/preview') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (_) => PreviewScreen(
-              imagePaths: args['imagePaths'] as List<String>,
-              tipo: args['tipo'] as String,
-            ),
-          );
-        }
-        if (settings.name == '/analysis-result') {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (_) => AnalysisResultScreen(
-              imagePaths: List<String>.from(args['imagePaths'] as List),
-              tipo: args['tipo'] as String,
-              descripcion: args['descripcion'] as String? ?? '',
-              audioPath: args['audioPath'] as String?,
-            ),
-          );
-        }
-        return null;
-      },
+      routerConfig: goRouter,
     );
   }
 }
+

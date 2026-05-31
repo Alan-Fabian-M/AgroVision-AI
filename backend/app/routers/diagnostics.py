@@ -17,6 +17,8 @@ from fastapi import (
 from app.services.weather_service import WeatherService, get_weather_service
 from app.services.gemini_service import GeminiService, get_gemini_service
 from app.services.neo4j_service import Neo4jRecommendationService, get_recommendation_service
+from app.api.dependencies import RoleChecker
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/diagnostics", tags=["Diagnostics"])
@@ -69,6 +71,7 @@ async def analyze_crop(
     weather_service: WeatherService = Depends(get_weather_service),
     gemini_service: GeminiService = Depends(get_gemini_service),
     neo4j_service: Neo4jRecommendationService = Depends(get_recommendation_service),
+    current_user: User = Depends(RoleChecker(["ADMIN", "AGRICULTOR"])),
 ):
     """
     Pipeline completo de análisis multimodal.
