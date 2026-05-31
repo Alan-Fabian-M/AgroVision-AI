@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../widgets/weather_card.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -18,6 +19,8 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    const WeatherGlassCard(),
+                    const SizedBox(height: 24),
                     _buildDiagnosticButton(context),
                     const SizedBox(height: 32),
                     _buildRecentDiagnostics(),
@@ -88,28 +91,6 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.outlineVariant),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.wb_sunny_outlined, size: 18, color: AppColors.tertiaryContainer),
-                const SizedBox(width: 6),
-                Text(
-                  '24°C',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

@@ -23,6 +23,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
+  bool _isCapturing = false;
 
   @override
   void initState() {
@@ -43,10 +44,12 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
       if (_cameras != null && _cameras!.isNotEmpty) {
         _cameraController = CameraController(
           _cameras![0],
-          ResolutionPreset.high,
+          ResolutionPreset.medium, // Bajamos a medium para evitar el error de buffer maxImages
           enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.jpeg,
         );
         await _cameraController!.initialize();
+        await _cameraController!.setFlashMode(FlashMode.off); // Apagar flash por defecto para evitar crash de buffer
         if (mounted) {
           setState(() {
             _isCameraInitialized = true;
@@ -74,6 +77,9 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
   }
 
   Future<void> _takePhoto() async {
+    if (_isCapturing) return; // Prevenir múltiples toques
+    setState(() => _isCapturing = true);
+
     if (!_isCameraInitialized || _cameraController == null) {
       // Fallback
       final picker = ImagePicker();
@@ -81,6 +87,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
       if (file != null && mounted) {
         _navigateToAnalysis([file.path]);
       }
+      if (mounted) setState(() => _isCapturing = false);
       return;
     }
 
@@ -91,6 +98,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
       }
     } catch (e) {
       debugPrint('Error taking picture: $e');
+    } finally {
+      if (mounted) setState(() => _isCapturing = false);
     }
   }
 
@@ -430,22 +439,27 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
             ),
             // Botón de captura
             GestureDetector(
-              onTap: _takePhoto,
+              onTap: _isCapturing ? null : _takePhoto,
               child: Container(
                 width: 88,
                 height: 88,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.onPrimaryContainer, width: 4),
+                  border: Border.all(
+                    color: _isCapturing ? AppColors.outlineVariant : AppColors.onPrimaryContainer, 
+                    width: 4
+                  ),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(6),
                   child: Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.primary,
+                      color: _isCapturing ? AppColors.surfaceContainerHigh : AppColors.primary,
                     ),
-                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 30),
+                    child: _isCapturing 
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Icon(Icons.camera_alt, color: Colors.white, size: 30),
                   ),
                 ),
               ),

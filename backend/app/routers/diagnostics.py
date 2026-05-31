@@ -16,6 +16,7 @@ from app.dependencies import get_orchestrator
 from app.models.diagnosis import Diagnosis
 from app.schemas.diagnosis import DiagnosisResponse
 from app.services.diagnosis_orchestrator import DiagnosisOrchestrator
+from app.services.weather_service import WeatherService, get_weather_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/diagnostics", tags=["Diagnostics"])
@@ -34,13 +35,12 @@ MAX_FILE_SIZE_MB = 10
 # ── POST /analyze — Endpoint principal ───────────────────
 @router.post(
     "/analyze",
-    response_model=DiagnosisResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Análisis multimodal de cultivo",
+    summary="Análisis multimodal de cultivo (Validación Temporal)",
     description=(
         "Recibe datos multimodales (imágenes, audio, texto) junto con "
-        "coordenadas geográficas. Ejecuta el pipeline completo: "
-        "almacenamiento → clima → IA (Gemini) → tratamiento → persistencia."
+        "coordenadas geográficas. Temporalmente solo valida imágenes "
+        "y retorna el contexto climático obtenido de OpenWeatherMap."
     ),
 )
 async def analyze_crop(
@@ -68,15 +68,14 @@ async def analyze_crop(
         ...,
         description="Lista de imágenes del cultivo afectado"
     ),
-    db: Session = Depends(get_db),
-    orchestrator: DiagnosisOrchestrator = Depends(get_orchestrator),
+    weather_service: WeatherService = Depends(get_weather_service),
 ):
     """
-    Endpoint principal de análisis multimodal.
-    Flujo:
+    Endpoint temporal de validación multimodal y de clima.
+    Flujo temporal:
     1. Valida inputs (formatos de archivo, user_id UUID).
-    2. Delega al DiagnosisOrchestrator.
-    3. Retorna DiagnosisResponse con todos los datos del análisis.
+    2. Consulta API del clima (OpenWeatherMap).
+    3. Retorna un JSON temporal.
     """
     # ── Validar user_id como UUID ────────────────────────
     try:
@@ -118,34 +117,33 @@ async def analyze_crop(
     else:
         audio = None  # Normalizar: sin archivo = None
 
-    # ── Ejecutar pipeline ────────────────────────────────
+    # ── Consultar Clima ──────────────────────────────────
     try:
-        result = await orchestrator.execute(
-            db=db,
-            user_id=parsed_user_id,
-            latitude=latitude,
-            longitude=longitude,
-            images=valid_images,
-            audio=audio,
-            text_notes=text_notes,
-        )
-        return result
-
-    except DatabaseException as e:
-        logger.error(f"Error de base de datos: {e.detail}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error de base de datos: {e.detail}",
-        )
+        weather_data = await weather_service.get_weather(latitude, longitude)
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        logger.error(f"Error inesperado en analyze_crop: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=(
-                "Error interno durante el análisis. "
-                "Intente nuevamente o contacte soporte."
-            ),
-        )
+        logger.error(f"Error consultando el clima en el endpoint: {e}")
+        weather_data = {"error": "No se pudo obtener el clima"}
+
+    # ── Respuesta Temporal (Ignorando DB/Gemini) ─────────
+    return {
+        "plaga_detectada": f"Imágenes: {len(valid_images)} | Clima: {weather_data.get('temperature', 'N/A')}°C",
+        "nivel_gravedad": "INFO",
+        "prioridad": "BAJA",
+        "recomendaciones": [
+            "Conexión Frontend-Backend Exitosa.",
+            f"Archivos procesados: {len(valid_images)} imagen(es).",
+            f"Audio recibido: {'Sí' if audio is not None else 'No'}.",
+            f"Notas: {text_notes or 'Ninguna'}"
+        ],
+        "productos_sugeridos": [
+            f"Temp: {weather_data.get('temperature', 'N/A')}°C",
+            f"Humedad: {weather_data.get('humidity', 'N/A')}%",
+            f"Condición: {weather_data.get('condition', 'N/A')}"
+        ],
+        "confianza": 1.0
+    }
 
 
 # ── GET /{id} — Consultar diagnóstico por ID ────────────

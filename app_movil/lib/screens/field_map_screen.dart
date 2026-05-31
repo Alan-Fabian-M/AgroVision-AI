@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:latlong2/latlong.dart';
 import '../theme/app_theme.dart';
+import '../widgets/weather_card.dart';
 
 // Zona central Santa Cruz de la Sierra, Bolivia
 const _santaCruz = LatLng(-17.7863, -63.1812);
@@ -14,11 +14,8 @@ class FieldMapScreen extends StatefulWidget {
   State<FieldMapScreen> createState() => _FieldMapScreenState();
 }
 
-class _FieldMapScreenState extends State<FieldMapScreen>
-    with SingleTickerProviderStateMixin {
-  final _mapController = MapController();
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnim;
+class _FieldMapScreenState extends State<FieldMapScreen> {
+  GoogleMapController? _mapController;
   _AlertData? _selectedAlert;
 
   // Brotes simulados con coordenadas reales en Santa Cruz
@@ -61,20 +58,12 @@ class _FieldMapScreenState extends State<FieldMapScreen>
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
     _selectedAlert = _alerts.first;
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _mapController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -96,6 +85,11 @@ class _FieldMapScreenState extends State<FieldMapScreen>
             child: Stack(
               children: [
                 _buildMap(),
+                const Positioned(
+                  top: 16,
+                  left: 16,
+                  child: WeatherGlassCard(),
+                ),
                 _buildLegend(),
                 _buildBottomAlert(),
               ],
@@ -166,64 +160,51 @@ class _FieldMapScreenState extends State<FieldMapScreen>
   }
 
   Widget _buildMap() {
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _santaCruz,
-        initialZoom: 12.5,
-        minZoom: 10,
-        maxZoom: 18,
+    return GoogleMap(
+      initialCameraPosition: const CameraPosition(
+        target: _santaCruz,
+        zoom: 12.5,
       ),
-      children: [
-        // Tiles de OpenStreetMap
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.example.app_movil',
-        ),
-        // Círculos de calor (heatmap simulado)
-        CircleLayer(
-          circles: _outbreaks.map((o) {
-            final color = _riskColor(o.nivel);
-            return CircleMarker(
-              point: o.position,
-              radius: o.nivel == _RiskLevel.alto ? 800 : o.nivel == _RiskLevel.medio ? 600 : 400,
-              useRadiusInMeter: true,
-              color: color.withValues(alpha: 0.18),
-              borderColor: color.withValues(alpha: 0.5),
-              borderStrokeWidth: 1.5,
-            );
-          }).toList(),
-        ),
-        // Marcadores de brotes
-        MarkerLayer(
-          markers: _outbreaks.map((o) {
-            return Marker(
-              point: o.position,
-              width: 120,
-              height: 70,
-              child: _OutbreakMarker(
-                label: o.label,
-                nivel: o.nivel,
-                riskColor: _riskColor(o.nivel),
-                pulseAnim: _pulseAnim,
-                onTap: () => setState(() => _selectedAlert = _AlertData(
-                  titulo: '${o.plaga} detectada',
-                  descripcion: 'En ${o.label}. Tome medidas preventivas.',
-                  tiempo: 'Ahora',
-                  nivel: o.nivel,
-                )),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
+      onMapCreated: (controller) => _mapController = controller,
+      myLocationEnabled: true,
+      zoomControlsEnabled: false,
+      mapToolbarEnabled: false,
+      circles: _outbreaks.map((o) {
+        final color = _riskColor(o.nivel);
+        return Circle(
+          circleId: CircleId(o.label),
+          center: o.position,
+          radius: o.nivel == _RiskLevel.alto ? 800 : o.nivel == _RiskLevel.medio ? 600 : 400,
+          fillColor: color.withValues(alpha: 0.18),
+          strokeColor: color.withValues(alpha: 0.5),
+          strokeWidth: 2,
+        );
+      }).toSet(),
+      markers: _outbreaks.map((o) {
+        double hue = BitmapDescriptor.hueGreen;
+        if (o.nivel == _RiskLevel.alto) hue = BitmapDescriptor.hueRed;
+        if (o.nivel == _RiskLevel.medio) hue = BitmapDescriptor.hueOrange;
+        return Marker(
+          markerId: MarkerId(o.label),
+          position: o.position,
+          icon: BitmapDescriptor.defaultMarkerWithHue(hue),
+          onTap: () {
+            setState(() => _selectedAlert = _AlertData(
+              titulo: '${o.plaga} detectada',
+              descripcion: 'En ${o.label}. Tome medidas preventivas.',
+              tiempo: 'Ahora',
+              nivel: o.nivel,
+            ));
+          },
+        );
+      }).toSet(),
     );
   }
 
   Widget _buildLegend() {
     return Positioned(
-      top: 12,
-      right: 12,
+      top: 16,
+      right: 16,
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
@@ -245,11 +226,11 @@ class _FieldMapScreenState extends State<FieldMapScreen>
               ),
             ),
             const SizedBox(height: 6),
-            _LegendRow(label: 'Alto',  gradient: [AppColors.error, const Color(0xFFFFDAD6)]),
+            const _LegendRow(label: 'Alto',  gradient: [AppColors.error, Color(0xFFFFDAD6)]),
             const SizedBox(height: 4),
-            _LegendRow(label: 'Medio', gradient: [AppColors.secondaryContainer, const Color(0xFFFFB77D)]),
+            const _LegendRow(label: 'Medio', gradient: [AppColors.secondaryContainer, Color(0xFFFFB77D)]),
             const SizedBox(height: 4),
-            _LegendRow(label: 'Bajo',  gradient: [AppColors.primaryContainer, AppColors.primary]),
+            const _LegendRow(label: 'Bajo',  gradient: [AppColors.primaryContainer, AppColors.primary]),
           ],
         ),
       ),
@@ -267,9 +248,9 @@ class _FieldMapScreenState extends State<FieldMapScreen>
             : 'Aviso';
 
     return Positioned(
-      bottom: 12,
-      left: 12,
-      right: 12,
+      bottom: 16,
+      left: 16,
+      right: 16,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -386,66 +367,6 @@ class _FieldMapScreenState extends State<FieldMapScreen>
 }
 
 // ── Widgets internos ────────────────────────────────────────────────────────
-
-class _OutbreakMarker extends StatelessWidget {
-  final String label;
-  final _RiskLevel nivel;
-  final Color riskColor;
-  final Animation<double> pulseAnim;
-  final VoidCallback onTap;
-
-  const _OutbreakMarker({
-    required this.label,
-    required this.nivel,
-    required this.riskColor,
-    required this.pulseAnim,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedBuilder(
-            animation: pulseAnim,
-            builder: (_, __) => Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: riskColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: riskColor.withValues(alpha: pulseAnim.value * 0.5),
-                    blurRadius: 12 * pulseAnim.value,
-                    spreadRadius: 4 * pulseAnim.value,
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.pest_control, color: Colors.white, size: 20),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.surface.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: riskColor, width: 1),
-            ),
-            child: Text(
-              label,
-              style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w700, color: riskColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _LegendRow extends StatelessWidget {
   final String label;
   final List<Color> gradient;

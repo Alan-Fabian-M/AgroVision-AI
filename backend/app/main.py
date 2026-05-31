@@ -25,6 +25,7 @@ from app.routers.diagnostics import router as diagnostics_router
 from app.routers.knowledge import router as knowledge_router
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 # ── Lifespan ─────────────────────────────────────────────
