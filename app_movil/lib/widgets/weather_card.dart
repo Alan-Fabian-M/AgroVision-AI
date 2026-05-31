@@ -48,7 +48,7 @@ class WeatherGlassCard extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    '${weather.condition} • Humedad ${weather.humidity}%',
+                    '${weather.condition} • Humedad Relativa: ${weather.humidity}%',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,

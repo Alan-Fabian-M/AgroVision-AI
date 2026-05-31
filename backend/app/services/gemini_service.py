@@ -85,7 +85,7 @@ fitosanitario de cultivos tropicales de la zona de Santa Cruz, Bolivia.
 3. SEVERIDAD: Clasifica en BAJO | MODERADO | ALTO | CRITICO.
 
 4. RIESGO DE PROPAGACIÓN: Clasifica en BAJO | MODERADO | ALTO | MUY_ALTO.
-   Considera las condiciones climáticas actuales.
+   JUSTIFICA explícitamente cómo las condiciones climáticas actuales (temperatura, humedad) aceleran o frenan el ciclo biológico de esta plaga.
 
 5. IMPACTO ECONÓMICO: Estima la pérdida en USD/hectárea.
    Referencia: Soya = 3 ton/ha × $350/ton = $1,050/ha potencial.
@@ -96,7 +96,8 @@ fitosanitario de cultivos tropicales de la zona de Santa Cruz, Bolivia.
 
 REGLAS CRÍTICAS:
 - Responde SOLO con un objeto JSON válido, SIN texto antes ni después.
-- NO uses markdown ni bloques de código.
+- NO uses bloques de código markdown (como ```json).
+- PERMITIDO: DENTRO de los campos de texto, DEBES usar saltos de línea (\n) para separar ideas y **negrita** para resaltar términos importantes.
 - Usa EXACTAMENTE estas claves:
 
 {{
@@ -106,11 +107,10 @@ REGLAS CRÍTICAS:
     "propagation_risk": "BAJO | MODERADO | ALTO | MUY_ALTO",
     "economic_impact_estimate": 0.0,
     "confidence": 0.0,
-    "description": "Descripción breve del diagnóstico y lo observado en las imágenes",
-    "action_plan": "Plan de acción inmediato para el agricultor"
+    "description": "Descripción breve del diagnóstico, detallando el impacto del clima actual en la proliferación.",
+    "action_plan": "Paso 1: Haz esto.\nPaso 2: Usa **este producto**.\nPaso 3: Revisa esto."
 }}
 """
-
     async def analyze_images(
         self,
         images: list[UploadFile],
@@ -118,7 +118,7 @@ REGLAS CRÍTICAS:
         text_notes: str | None = None,
     ) -> dict[str, Any]:
         """
-        Envía las imágenes a Gemini 2.5 Flash y retorna el diagnóstico en JSON.
+        Envía las imágenes a Gemini 3.5 Flash y retorna el diagnóstico en JSON.
         """
         try:
             client = self._get_client()

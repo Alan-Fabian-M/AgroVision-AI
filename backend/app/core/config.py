@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # ── APIs externas ────────────────────────────────────
     GEMINI_API_KEY: str = ""
-    OPENWEATHERMAP_API_KEY: str = ""
+    OPENWEATHER_API_KEY: str = ""
 
     # ── Almacenamiento de archivos ───────────────────────
     UPLOAD_DIR: str = "uploads"

@@ -12,12 +12,10 @@ import '../core/providers/location_provider.dart';
 
 class PreviewScreen extends ConsumerStatefulWidget {
   final List<String> imagePaths;
-  final String tipo;
 
   const PreviewScreen({
     super.key,
     required this.imagePaths,
-    required this.tipo,
   });
 
   @override
@@ -114,7 +112,12 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
     );
     if (result == null) return;
 
-    final file = await _picker.pickImage(source: result);
+    final file = await _picker.pickImage(
+      source: result,
+      imageQuality: 60,
+      maxWidth: 1920,
+      maxHeight: 1920,
+    );
     if (file != null && mounted) {
       setState(() {
         _imagePaths.add(file.path);
@@ -128,7 +131,6 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
       '/analysis-result',
       extra: {
         'imagePaths': _imagePaths,
-        'tipo': widget.tipo,
         'descripcion': _notesController.text,
         'audioPath': _audioPath,
       },
@@ -253,34 +255,17 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
               }
             ),
           ),
-          // Chip de tipo seleccionado
-          Positioned(
-            top: 16,
-            left: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primaryContainer.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                widget.tipo,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.onPrimaryContainer,
-                ),
-              ),
-            ),
-          ),
+          // Fin de chips
         ],
       ),
     );
   }
 
   Widget _buildEvidenceCarousel() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 140),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -365,6 +350,7 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 

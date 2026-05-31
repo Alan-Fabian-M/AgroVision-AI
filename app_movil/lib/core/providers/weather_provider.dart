@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import '../constants/api_constants.dart';
 import 'location_provider.dart';
 
 class WeatherData {
@@ -23,15 +25,26 @@ final weatherProvider = FutureProvider<WeatherData?>((ref) async {
     return null;
   }
 
-  // Simulamos un delay de red para conectarnos al backend
-  await Future.delayed(const Duration(seconds: 1));
-
-  // TODO: En el futuro esto será un ref.read(dioProvider).get('/api/v1/weather?lat=x&lon=y')
-  // Por ahora devolvemos datos simulados basados en la ubicación.
+  try {
+    final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10)));
+    final url = '${ApiConstants.baseUrl}/weather?lat=${locationAsync.value!.latitude}&lon=${locationAsync.value!.longitude}';
+    final response = await dio.get(url);
+    if (response.statusCode == 200) {
+      final data = response.data;
+      return WeatherData(
+        temperature: (data['temperature'] as num).toDouble(),
+        humidity: data['humidity'] as int,
+        condition: data['condition'] as String,
+        iconCode: data['icon'] as String,
+      );
+    }
+  } catch (e) {
+    // Si falla, caemos en datos por defecto pero lo hacemos explícito.
+  }
   return const WeatherData(
-    temperature: 28.5,
-    humidity: 75,
-    condition: 'Parcialmente Nublado',
-    iconCode: '02d',
+    temperature: 0.0,
+    humidity: 0,
+    condition: 'Desconocido',
+    iconCode: '01d',
   );
 });
