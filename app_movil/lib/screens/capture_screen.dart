@@ -1,4 +1,3 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,10 +18,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
   final _tabs = ['Planta', 'Insecto', 'Suelo'];
   late AnimationController _scanController;
   late Animation<double> _scanAnimation;
-
-  CameraController? _cameraController;
-  List<CameraDescription>? _cameras;
-  bool _isCameraInitialized = false;
   bool _isCapturing = false;
 
   @override
@@ -35,36 +30,11 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
     _scanAnimation = Tween<double>(begin: 0.1, end: 0.9).animate(
       CurvedAnimation(parent: _scanController, curve: Curves.easeInOut),
     );
-    _initializeCamera();
-  }
-
-  Future<void> _initializeCamera() async {
-    try {
-      _cameras = await availableCameras();
-      if (_cameras != null && _cameras!.isNotEmpty) {
-        _cameraController = CameraController(
-          _cameras![0],
-          ResolutionPreset.medium, // Bajamos a medium para evitar el error de buffer maxImages
-          enableAudio: false,
-          imageFormatGroup: ImageFormatGroup.jpeg,
-        );
-        await _cameraController!.initialize();
-        await _cameraController!.setFlashMode(FlashMode.off); // Apagar flash por defecto para evitar crash de buffer
-        if (mounted) {
-          setState(() {
-            _isCameraInitialized = true;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error initializing camera: $e');
-    }
   }
 
   @override
   void dispose() {
     _scanController.dispose();
-    _cameraController?.dispose();
     super.dispose();
   }
 
@@ -72,29 +42,23 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
     final picker = ImagePicker();
     final files = await picker.pickMultiImage(imageQuality: 80);
     if (files.isNotEmpty && mounted) {
-      _navigateToAnalysis(files.map((e) => e.path).toList());
+      _navigateToPreview(files.map((e) => e.path).toList());
     }
   }
 
   Future<void> _takePhoto() async {
-    if (_isCapturing) return; // Prevenir múltiples toques
+    if (_isCapturing) return;
     setState(() => _isCapturing = true);
 
-    if (!_isCameraInitialized || _cameraController == null) {
-      // Fallback
-      final picker = ImagePicker();
-      final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
-      if (file != null && mounted) {
-        _navigateToAnalysis([file.path]);
-      }
-      if (mounted) setState(() => _isCapturing = false);
-      return;
-    }
-
     try {
-      final xFile = await _cameraController!.takePicture();
-      if (mounted) {
-        _navigateToAnalysis([xFile.path]);
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+      if (file != null && mounted) {
+        _navigateToPreview([file.path]);
       }
     } catch (e) {
       debugPrint('Error taking picture: $e');
@@ -103,7 +67,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
     }
   }
 
-  void _navigateToAnalysis(List<String> imagePaths) {
+  void _navigateToPreview(List<String> imagePaths) {
     Navigator.pushNamed(
       context,
       '/preview',
@@ -121,8 +85,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Fondo simulando cámara
-          _buildCameraBackground(),
+          // Fondo estilizado
+          _buildBackground(),
           // Overlay oscuro
           Container(color: Colors.black.withValues(alpha: 0.35)),
           // Header
@@ -136,26 +100,33 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
     );
   }
 
-  Widget _buildCameraBackground() {
-    if (_isCameraInitialized && _cameraController != null) {
-      return SizedBox.expand(
-        child: FittedBox(
-          fit: BoxFit.cover,
-          child: SizedBox(
-            width: _cameraController!.value.previewSize?.height ?? 1,
-            height: _cameraController!.value.previewSize?.width ?? 1,
-            child: CameraPreview(_cameraController!),
-          ),
-        ),
-      );
-    }
-    
+  Widget _buildBackground() {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0xFF1A2E1A), Color(0xFF2D4A2D), Color(0xFF1A2E1A)],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.camera_alt_outlined,
+              size: 80,
+              color: Colors.white.withValues(alpha: 0.15),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Presiona el botón para abrir la cámara',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.white.withValues(alpha: 0.25),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -188,7 +159,7 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
               onTap: () => Navigator.pop(context),
               child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
             ),
-            // GPS + Flash
+            // GPS
             Row(
               children: [
                 Consumer(
@@ -230,11 +201,6 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
                       ),
                     );
                   }
-                ),
-                const SizedBox(width: 8),
-                _glassButton(
-                  onTap: () {},
-                  child: const Icon(Icons.flash_off, color: Colors.white, size: 22),
                 ),
               ],
             ),
@@ -446,8 +412,8 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _isCapturing ? AppColors.outlineVariant : AppColors.onPrimaryContainer, 
-                    width: 4
+                    color: _isCapturing ? AppColors.outlineVariant : AppColors.onPrimaryContainer,
+                    width: 4,
                   ),
                 ),
                 child: Padding(
@@ -457,9 +423,9 @@ class _CaptureScreenState extends ConsumerState<CaptureScreen>
                       shape: BoxShape.circle,
                       color: _isCapturing ? AppColors.surfaceContainerHigh : AppColors.primary,
                     ),
-                    child: _isCapturing 
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Icon(Icons.camera_alt, color: Colors.white, size: 30),
+                    child: _isCapturing
+                        ? const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                        : const Icon(Icons.camera_alt, color: Colors.white, size: 30),
                   ),
                 ),
               ),
