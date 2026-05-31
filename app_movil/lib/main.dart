@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 import 'screens/capture_screen.dart';
@@ -10,7 +11,7 @@ import 'screens/profile_screen.dart';
 import 'screens/insumo_screen.dart';
 
 void main() {
-  runApp(const AgroGuardianApp());
+  runApp(const ProviderScope(child: AgroGuardianApp()));
 }
 
 class AgroGuardianApp extends StatelessWidget {
@@ -19,7 +20,7 @@ class AgroGuardianApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AgroGuardian AI',
+      title: 'AgroVision AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       initialRoute: '/',
@@ -48,7 +49,7 @@ class AgroGuardianApp extends StatelessWidget {
           final args = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
             builder: (_) => PreviewScreen(
-              imagePath: args['imagePath'] as String,
+              imagePaths: args['imagePaths'] as List<String>,
               tipo: args['tipo'] as String,
             ),
           );
@@ -60,6 +61,7 @@ class AgroGuardianApp extends StatelessWidget {
               imagePaths: List<String>.from(args['imagePaths'] as List),
               tipo: args['tipo'] as String,
               descripcion: args['descripcion'] as String? ?? '',
+              audioPath: args['audioPath'] as String?,
             ),
           );
         }
