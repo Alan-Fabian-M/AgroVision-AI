@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/weather_card.dart';
 
@@ -355,9 +356,9 @@ class _FieldMapScreenState extends State<FieldMapScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _NavBtn(icon: Icons.home_outlined, label: 'Home', active: false,
-              onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false)),
+              onTap: () => context.go('/')),
           _NavBtn(icon: Icons.photo_camera_outlined, label: 'Capture', active: false,
-              onTap: () => Navigator.pushNamed(context, '/capture')),
+              onTap: () => context.push('/capture')),
           _NavBtn(icon: Icons.map, label: 'Field', active: true, onTap: () {}),
           _NavBtn(icon: Icons.chat_bubble_outline, label: 'Advisor', active: false, onTap: () {}),
         ],
